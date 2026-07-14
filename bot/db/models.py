@@ -40,7 +40,9 @@ class Branch(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     address: Mapped[str] = mapped_column(String, nullable=False)
     open_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    open_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     close_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    close_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

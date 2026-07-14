@@ -51,6 +51,28 @@ async def test_free_hours_excludes_booked(session_factory):
         assert hours == [10, 12, 13]
 
 
+async def test_free_hours_offset_by_half_hour_opening(session_factory):
+    async with session_factory() as s:
+        # Opens 11:30, closes 14:00 -> first slot is the next full hour (12:00).
+        s.add(Branch(id=5, name="Half", address="Z", open_hour=11, open_minute=30,
+                     close_hour=14, close_minute=0, is_active=True))
+        await s.commit()
+        b = await slots.get_branch(s, 5)
+        hours = await slots.free_hours(s, b, date(2026, 7, 20), datetime(2026, 7, 13, 8, 0))
+        assert hours == [12, 13]
+        assert slots.first_slot_hour(b) == 12
+
+
+async def test_free_hours_on_the_hour_opening_unchanged(session_factory):
+    async with session_factory() as s:
+        s.add(Branch(id=6, name="Whole", address="Z", open_hour=11, open_minute=0,
+                     close_hour=14, is_active=True))
+        await s.commit()
+        b = await slots.get_branch(s, 6)
+        hours = await slots.free_hours(s, b, date(2026, 7, 20), datetime(2026, 7, 13, 8, 0))
+        assert hours == [11, 12, 13]
+
+
 async def test_free_hours_excludes_past_hours_today(session_factory):
     await _seed(session_factory)
     async with session_factory() as s:

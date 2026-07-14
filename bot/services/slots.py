@@ -47,6 +47,12 @@ async def _booked_hours(session: AsyncSession, branch_id: int, day: date) -> set
     return booked
 
 
+def first_slot_hour(branch: Branch) -> int:
+    """First bookable whole hour. Slots are on the hour, so a half-hour opening
+    (e.g. 11:30) pushes the first slot to the next full hour (12:00)."""
+    return branch.open_hour + (1 if branch.open_minute else 0)
+
+
 async def free_hours(
     session: AsyncSession, branch: Branch, day: date, now: datetime
 ) -> list[int]:
@@ -54,7 +60,7 @@ async def free_hours(
     validated later (once the people count is known) via ``create_booking``."""
     booked = await _booked_hours(session, branch.id, day)
     hours = []
-    for hour in range(branch.open_hour, branch.close_hour):
+    for hour in range(first_slot_hour(branch), branch.close_hour):
         if hour in booked:
             continue
         if day == now.date() and hour <= now.hour:

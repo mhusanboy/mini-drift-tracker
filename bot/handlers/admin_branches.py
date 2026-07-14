@@ -9,6 +9,7 @@ from bot.db.models import Branch
 from bot.keyboards.admin import admin_branches_kb
 from bot.locales import t
 from bot.states import AddBranch
+from bot.timeutil import format_time, parse_time
 
 router = Router()
 
@@ -23,7 +24,8 @@ async def _render_branches(target, session_factory, lang: str):
     lines = [
         t("branch_admin_line", lang,
           status="🟢" if b.is_active else "🔴", name=b.name,
-          open=b.open_hour, close=b.close_hour, address=b.address)
+          open=format_time(b.open_hour, b.open_minute),
+          close=format_time(b.close_hour, b.close_minute), address=b.address)
         for b in branches
     ] or ["—"]
     await target.answer(
@@ -102,34 +104,39 @@ async def branch_address(message: Message, state: FSMContext, lang: str):
 
 @router.message(AddBranch.open_hour, F.text)
 async def branch_open(message: Message, state: FSMContext, lang: str):
-    text = message.text.strip()
-    if not text.isdigit() or not (0 <= int(text) <= 23):
+    minutes = parse_time(message.text)
+    # Opening must be a real time-of-day (not 24:00 midnight).
+    if minutes is None or minutes >= 24 * 60:
         await message.answer(t("hour_invalid", lang))
         return
-    await state.update_data(open_hour=int(text))
+    await state.update_data(open_hour=minutes // 60, open_minute=minutes % 60)
     await state.set_state(AddBranch.close_hour)
     await message.answer(t("ask_close_hour", lang))
 
 
 @router.message(AddBranch.close_hour, F.text)
 async def branch_close(message: Message, state: FSMContext, lang: str, session_factory):
-    text = message.text.strip()
+    minutes = parse_time(message.text)
     data = await state.get_data()
-    if not text.isdigit() or not (1 <= int(text) <= 24) or int(text) <= data["open_hour"]:
+    open_minutes = data["open_hour"] * 60 + data["open_minute"]
+    if minutes is None or minutes <= open_minutes:
         await message.answer(t("hour_invalid", lang))
         return
-    close_hour = int(text)
+    close_hour, close_minute = minutes // 60, minutes % 60
     async with session_factory() as session:
         if data.get("edit_id"):
             branch = await session.get(Branch, data["edit_id"])
             branch.name = data["name"]
             branch.address = data["address"]
             branch.open_hour = data["open_hour"]
+            branch.open_minute = data["open_minute"]
             branch.close_hour = close_hour
+            branch.close_minute = close_minute
         else:
             session.add(Branch(
                 name=data["name"], address=data["address"],
-                open_hour=data["open_hour"], close_hour=close_hour, is_active=True,
+                open_hour=data["open_hour"], open_minute=data["open_minute"],
+                close_hour=close_hour, close_minute=close_minute, is_active=True,
             ))
         await session.commit()
     await state.clear()

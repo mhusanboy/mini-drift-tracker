@@ -42,9 +42,13 @@ Each hourly slot holds exactly **one group** (the service has effectively one
 kart/track resource per branch at a time). Rather than materialize empty slot
 rows, availability is computed:
 
-- A branch defines `open_hour` and `close_hour` (integers, 24h).
-- For a given `(branch, date)`, the candidate start hours are
-  `range(open_hour, close_hour)`.
+- A branch defines opening and closing times with minute precision
+  (`open_hour`/`open_minute`, `close_hour`/`close_minute`); admins may enter
+  `11`, `11:00`, or `11:30`.
+- Bookable slots stay **on the hour**. The first bookable hour is the opening
+  hour, bumped to the next full hour if the opening minute is non-zero (open
+  `11:30` → first slot `12:00`). Candidate start hours are
+  `range(first_slot_hour, close_hour)`.
 - A confirmed `Booking` row **is** the occupancy. It spans
   `num_hours = ceil(people / 6)` consecutive hours starting at `start_hour`
   (see the duration rule below), so free hours = candidate hours minus every
@@ -81,8 +85,10 @@ and the user is asked to pick an earlier start time (or a different day).
 | `id` | int, PK | |
 | `name` | str | |
 | `address` | str | |
-| `open_hour` | int | inclusive, 0–23 |
-| `close_hour` | int | exclusive; last slot starts at `close_hour - 1` |
+| `open_hour` | int | opening hour, 0–23 |
+| `open_minute` | int | opening minute (0 or 30 typical); admins enter `11`, `11:00`, or `11:30` |
+| `close_hour` | int | closing hour |
+| `close_minute` | int | closing minute |
 | `is_active` | bool | inactive branches hidden from users, history kept |
 | `created_at` | datetime | |
 
@@ -237,7 +243,10 @@ meaningful behavior. Tests run against an in-memory / temp-file SQLite DB.
 
 ## 10. Open questions / assumptions
 
-- Slots are hourly and on the hour (no half-hour granularity) — assumed.
+- Slots are hourly and on the hour. Opening/closing times accept minute
+  precision (`11`/`11:00`/`11:30`); a non-zero opening minute pushes the first
+  slot to the next full hour, and a non-zero closing minute does not extend the
+  last on-the-hour slot.
 - "Next 7 days including today" for the day picker — assumed, easily tuned.
 - One admin notification per admin id (DM), no admin group — per decision.
 - No user-facing booking edit (only cancel + rebook) — v1 simplification.
