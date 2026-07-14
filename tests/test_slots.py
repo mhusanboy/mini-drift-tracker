@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from bot.db.models import Branch, BookingStatus, User
+from bot.db.models import Booking, Branch, BookingStatus, User
 from bot.services import slots
 
 
@@ -143,6 +143,29 @@ async def test_cancel_wrong_user_returns_none(session_factory):
     async with session_factory() as s:
         b = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 2)
         assert await slots.cancel_booking(s, b.id, user_id=999) is None
+
+
+async def test_delete_branch_keeps_bookings_as_history(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        booking = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 2)
+        assert booking.branch_name == "Main"
+        assert await slots.delete_branch(s, 1) is True
+    async with session_factory() as s:
+        # Branch row is gone...
+        assert await slots.get_branch(s, 1) is None
+        assert [b.id for b in await slots.list_active_branches(s)] == []
+        # ...but the booking survives with its branch name and a nulled branch_id.
+        kept = await s.get(Booking, booking.id)
+        assert kept is not None
+        assert kept.branch_id is None
+        assert kept.branch_name == "Main"
+
+
+async def test_delete_missing_branch_returns_false(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        assert await slots.delete_branch(s, 999) is False
 
 
 async def test_upcoming_bookings_sorted_and_confirmed_only(session_factory):

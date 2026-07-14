@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.db.models import Booking, BookingStatus, Branch, User
+from bot.db.models import Booking, BookingStatus, User
 
 
 @dataclass
@@ -47,11 +47,10 @@ async def overview(session: AsyncSession, today: date) -> dict:
     ).scalar_one()
     by_branch_rows = (
         await session.execute(
-            select(Branch.name, func.count(Booking.id))
-            .join(Booking, Booking.branch_id == Branch.id)
+            select(Booking.branch_name, func.count(Booking.id))
             .where(confirmed)
-            .group_by(Branch.id)
-            .order_by(Branch.name)
+            .group_by(Booking.branch_name)
+            .order_by(Booking.branch_name)
         )
     ).all()
     return {
@@ -65,11 +64,10 @@ async def overview(session: AsyncSession, today: date) -> dict:
 async def _favorite_branch(session: AsyncSession, user_id: int) -> str | None:
     row = (
         await session.execute(
-            select(Branch.name, func.count(Booking.id).label("c"))
-            .join(Booking, Booking.branch_id == Branch.id)
+            select(Booking.branch_name, func.count(Booking.id).label("c"))
             .where(Booking.user_id == user_id, Booking.status == BookingStatus.CONFIRMED)
-            .group_by(Branch.id)
-            .order_by(func.count(Booking.id).desc(), Branch.name)
+            .group_by(Booking.branch_name)
+            .order_by(func.count(Booking.id).desc(), Booking.branch_name)
         )
     ).first()
     return row[0] if row else None
@@ -127,7 +125,7 @@ async def all_user_stats(session: AsyncSession) -> list[UserStat]:
 async def all_bookings(session: AsyncSession) -> list[BookingRow]:
     result = await session.execute(
         select(Booking)
-        .options(selectinload(Booking.branch), selectinload(Booking.user))
+        .options(selectinload(Booking.user))
         .order_by(Booking.date, Booking.start_hour)
     )
     rows: list[BookingRow] = []
@@ -139,7 +137,7 @@ async def all_bookings(session: AsyncSession) -> list[BookingRow]:
                 num_hours=b.num_hours,
                 people_count=b.people_count,
                 status=b.status,
-                branch_name=b.branch.name if b.branch else "—",
+                branch_name=b.branch_name or "—",
                 user_name=b.user.full_name if b.user else "—",
                 user_phone=b.user.phone if b.user else "—",
                 created_at=b.created_at,

@@ -29,7 +29,7 @@ async def notify_new_booking(bot: Bot, session_factory, admin_ids, booking, user
         lang = await _admin_lang(session_factory, admin_id)
         text = t(
             "admin_new_booking", lang,
-            branch=booking.branch.name, date=booking.date.isoformat(),
+            branch=booking.branch_name, date=booking.date.isoformat(),
             hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
             hours=booking.num_hours, people=booking.people_count,
             name=user.full_name, phone=user.phone,
@@ -42,7 +42,7 @@ async def notify_cancellation(bot: Bot, session_factory, admin_ids, booking, use
         lang = await _admin_lang(session_factory, admin_id)
         text = t(
             "admin_cancelled", lang,
-            branch=booking.branch.name, date=booking.date.isoformat(),
+            branch=booking.branch_name, date=booking.date.isoformat(),
             hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
             name=user.full_name, phone=user.phone,
         )

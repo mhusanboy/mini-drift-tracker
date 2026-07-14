@@ -99,7 +99,8 @@ and the user is asked to pick an earlier start time (or a different day).
 |-------|------|-------|
 | `id` | int, PK | |
 | `user_id` | int, FK → User.telegram_id | |
-| `branch_id` | int, FK → Branch.id | |
+| `branch_id` | int, FK → Branch.id, **nullable** | nulled if the branch is deleted |
+| `branch_name` | str | denormalized branch name, kept even after branch deletion |
 | `date` | date | booking day |
 | `start_hour` | int | 0–23 |
 | `num_hours` | int | consecutive hours reserved = `ceil(people/6)` |
@@ -188,6 +189,10 @@ a language. Each admin is notified in their own language.
     send `-` to skip. Branches with a location show a 📍 in the list.
   - **Edit** (re-run the same fields).
   - **Activate / Deactivate** toggle.
+  - **Delete** (with a Yes/No confirmation). Deleting removes the branch row but
+    keeps its bookings as history: each booking stores a denormalized
+    `branch_name` and its `branch_id` is nulled on delete, so stats and the
+    Excel export still show the deleted branch's bookings.
 
 When a customer picks a branch, the bot shows its location — a Telegram venue
 pin if coordinates are stored, otherwise the saved map link.

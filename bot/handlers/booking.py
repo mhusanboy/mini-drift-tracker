@@ -140,13 +140,11 @@ async def confirm_yes(cb: CallbackQuery, state: FSMContext, lang: str, bot: Bot,
             await cb.message.answer(t("slot_taken", lang), reply_markup=times_kb(hours, lang))
             await cb.answer()
             return
-        # Reload with relationships for notification + display.
-        branch = await slots.get_branch(session, data["branch_id"])
+        # branch_name is denormalized on the booking; load the user for the DM.
         user = await session.get(User, cb.from_user.id)
-        booking.branch = branch
     await state.clear()
     await cb.message.answer(
-        t("booking_confirmed", lang, branch=branch.name, date=data["day"],
+        t("booking_confirmed", lang, branch=booking.branch_name, date=data["day"],
           hour=data["hour"], end=data["hour"] + booking.num_hours, hours=booking.num_hours)
     )
     await notify.notify_new_booking(bot, session_factory, get_settings().admin_ids, booking, user)

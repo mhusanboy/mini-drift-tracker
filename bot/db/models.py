@@ -59,7 +59,10 @@ class Booking(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"), nullable=False)
-    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), nullable=False)
+    # Nullable so a branch can be deleted while its bookings survive as history.
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True)
+    # Denormalized branch name kept even after the branch row is deleted.
+    branch_name: Mapped[str] = mapped_column(String, nullable=False, default="")
     date: Mapped[date] = mapped_column(Date, nullable=False)
     start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     num_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

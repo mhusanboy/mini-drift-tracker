@@ -6,8 +6,9 @@ from sqlalchemy import select
 
 from bot.config import get_settings
 from bot.db.models import Branch
-from bot.keyboards.admin import admin_branches_kb
+from bot.keyboards.admin import admin_branches_kb, confirm_delete_branch_kb
 from bot.locales import t
+from bot.services import slots
 from bot.states import AddBranch
 from bot.timeutil import format_time, parse_time
 
@@ -87,6 +88,45 @@ async def toggle_branch(cb: CallbackQuery, lang: str, session_factory):
             branch.is_active = not branch.is_active
             await session.commit()
     await cb.answer(t("branch_toggled", lang))
+    await _render_branches(cb.message, session_factory, lang)
+
+
+@router.callback_query(F.data.startswith("abranch:delete:"))
+async def delete_branch_prompt(cb: CallbackQuery, lang: str, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer()
+        return
+    branch_id = int(cb.data.split(":")[2])
+    async with session_factory() as session:
+        branch = await session.get(Branch, branch_id)
+    if branch is None:
+        await cb.answer()
+        return
+    await cb.message.answer(
+        t("confirm_delete_branch", lang, name=branch.name),
+        reply_markup=confirm_delete_branch_kb(branch_id, lang),
+    )
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("abranch:delyes:"))
+async def delete_branch_confirm(cb: CallbackQuery, lang: str, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer()
+        return
+    branch_id = int(cb.data.split(":")[2])
+    async with session_factory() as session:
+        await slots.delete_branch(session, branch_id)
+    await cb.answer(t("branch_deleted", lang))
+    await _render_branches(cb.message, session_factory, lang)
+
+
+@router.callback_query(F.data == "abranch:delno")
+async def delete_branch_cancel(cb: CallbackQuery, lang: str, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer()
+        return
+    await cb.answer()
     await _render_branches(cb.message, session_factory, lang)
 
 

@@ -49,7 +49,9 @@ python -m pytest -v
     **Customers** (per-user analytics for promotions), and **Bookings** (every
     booking, including cancellations). Sheet names and headers are in the
     admin's language.
-  - Edit or activate/deactivate a branch from the same **Branches** view.
+  - Edit, activate/deactivate, or **delete** a branch from the same **Branches**
+    view. Delete asks for confirmation and keeps the branch's past bookings as
+    history (they still appear in stats and the Excel export).
 
 ## Architecture
 

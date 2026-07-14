@@ -1,10 +1,9 @@
 import math
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from bot.db.models import Booking, BookingStatus, Branch
 
@@ -99,6 +98,7 @@ async def create_booking(
     booking = Booking(
         user_id=user_id,
         branch_id=branch_id,
+        branch_name=branch.name,
         date=day,
         start_hour=hour,
         num_hours=num_hours,
@@ -120,9 +120,7 @@ async def cancel_booking(
     session: AsyncSession, booking_id: int, user_id: int
 ) -> Booking | None:
     result = await session.execute(
-        select(Booking)
-        .options(selectinload(Booking.branch))
-        .where(
+        select(Booking).where(
             Booking.id == booking_id,
             Booking.user_id == user_id,
             Booking.status == BookingStatus.CONFIRMED,
@@ -140,9 +138,7 @@ async def upcoming_bookings(
     session: AsyncSession, user_id: int, now: datetime
 ) -> list[Booking]:
     result = await session.execute(
-        select(Booking)
-        .options(selectinload(Booking.branch))
-        .where(
+        select(Booking).where(
             Booking.user_id == user_id,
             Booking.status == BookingStatus.CONFIRMED,
         )
@@ -153,3 +149,18 @@ async def upcoming_bookings(
         if b.date > now.date() or (b.date == now.date() and b.start_hour >= now.hour):
             out.append(b)
     return out
+
+
+async def delete_branch(session: AsyncSession, branch_id: int) -> bool:
+    """Delete a branch but keep its bookings as history: their branch_id is
+    nulled while the denormalized branch_name (and all other fields) survive.
+    Returns False if the branch does not exist."""
+    branch = await session.get(Branch, branch_id)
+    if branch is None:
+        return False
+    await session.execute(
+        update(Booking).where(Booking.branch_id == branch_id).values(branch_id=None)
+    )
+    await session.delete(branch)
+    await session.commit()
+    return True
