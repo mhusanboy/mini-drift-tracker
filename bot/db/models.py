@@ -4,6 +4,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -43,6 +44,10 @@ class Branch(Base):
     open_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     close_hour: Mapped[int] = mapped_column(Integer, nullable=False)
     close_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Location: either a shared Telegram point (lat/lng) or a map link (URL).
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

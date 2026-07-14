@@ -89,6 +89,8 @@ and the user is asked to pick an earlier start time (or a different day).
 | `open_minute` | int | opening minute (0 or 30 typical); admins enter `11`, `11:00`, or `11:30` |
 | `close_hour` | int | closing hour |
 | `close_minute` | int | closing minute |
+| `latitude` / `longitude` | float, nullable | set when the admin shares a Telegram location/venue |
+| `location_url` | str, nullable | set when the admin sends a Yandex/Google Maps link |
 | `is_active` | bool | inactive branches hidden from users, history kept |
 | `created_at` | datetime | |
 
@@ -180,9 +182,15 @@ a language. Each admin is notified in their own language.
   function over fetched data) and sent as a document; sheet names/headers are in
   the admin's language.
 - **Branch management `/branches`:** list branches with inline buttons:
-  - **Add** (FSM: name → address → open hour → close hour).
+  - **Add** (FSM: name → address → open time → close time → **location**).
+    The location step accepts a shared **Telegram location/venue** (stored as
+    lat/lng) or a **Yandex/Google Maps link** (stored as a URL); the admin may
+    send `-` to skip. Branches with a location show a 📍 in the list.
   - **Edit** (re-run the same fields).
   - **Activate / Deactivate** toggle.
+
+When a customer picks a branch, the bot shows its location — a Telegram venue
+pin if coordinates are stored, otherwise the saved map link.
 
 ## 7. Project structure
 

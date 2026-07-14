@@ -16,6 +16,20 @@ async def test_insert_and_read_user(session_factory):
         assert u.language == "uz"
 
 
+async def test_branch_stores_location(session_factory):
+    async with session_factory() as s:
+        s.add(Branch(id=1, name="Main", address="X", open_hour=10, close_hour=22,
+                     latitude=41.311081, longitude=69.240562))
+        s.add(Branch(id=2, name="Link", address="Y", open_hour=10, close_hour=22,
+                     location_url="https://yandex.uz/maps/-/abc"))
+        await s.commit()
+    async with session_factory() as s:
+        geo = await s.get(Branch, 1)
+        link = await s.get(Branch, 2)
+        assert round(geo.latitude, 4) == 41.3111 and geo.location_url is None
+        assert link.location_url.startswith("https://yandex") and link.latitude is None
+
+
 async def test_confirmed_slot_is_unique(session_factory):
     async with session_factory() as s:
         s.add(User(telegram_id=1, full_name="A", phone="+1"))

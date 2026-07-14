@@ -36,7 +36,10 @@ python -m pytest -v
   **Branches / Stats / Users**. Admin commands also appear in Telegram's `/`
   menu. Admins get a DM on each new booking/cancellation.
   - **Add a location:** open the panel → **Branches** (or `/branches`) →
-    **➕ Add branch** → enter name → address → opening hour → closing hour.
+    **➕ Add branch** → enter name → address → opening time → closing time →
+    **send the branch location** (a Telegram location/venue, or a Yandex/Google
+    Maps link; send `-` to skip). Opening/closing accept `11`, `11:00`, `11:30`.
+    Customers see the branch's location (a map pin or the link) when they pick it.
   - **Booking times are automatic:** every hour between the branch's opening and
     closing hour becomes a bookable slot (e.g. open 10, close 22 → 10:00…21:00).
     A customer's slot spans `ceil(people / 6)` consecutive hours.

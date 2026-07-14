@@ -19,3 +19,4 @@ class AddBranch(StatesGroup):
     address = State()
     open_hour = State()
     close_hour = State()
+    location = State()

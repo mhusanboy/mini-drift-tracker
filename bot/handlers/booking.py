@@ -31,10 +31,27 @@ async def start_booking(cb: CallbackQuery, state: FSMContext, lang: str, session
     await cb.answer()
 
 
+async def _send_branch_location(message, branch, lang: str) -> None:
+    """Show the customer where the branch is: a Telegram venue pin if we have
+    coordinates, otherwise the saved map link."""
+    if branch.latitude is not None and branch.longitude is not None:
+        await message.answer_venue(
+            latitude=branch.latitude, longitude=branch.longitude,
+            title=branch.name, address=branch.address,
+        )
+    elif branch.location_url:
+        await message.answer(t("branch_location_link", lang, name=branch.name,
+                              address=branch.address, url=branch.location_url))
+
+
 @router.callback_query(Booking.branch, F.data.startswith("branch:"))
-async def pick_branch(cb: CallbackQuery, state: FSMContext, lang: str):
+async def pick_branch(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
     branch_id = int(cb.data.split(":")[1])
     await state.update_data(branch_id=branch_id)
+    async with session_factory() as session:
+        branch = await slots.get_branch(session, branch_id)
+    if branch is not None:
+        await _send_branch_location(cb.message, branch, lang)
     await state.set_state(Booking.day)
     days = slots.next_days(_now().date())
     await cb.message.answer(t("choose_day", lang), reply_markup=days_kb(days, lang))

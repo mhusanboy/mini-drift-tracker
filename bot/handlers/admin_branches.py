@@ -23,7 +23,9 @@ async def _render_branches(target, session_factory, lang: str):
         branches = list((await session.execute(select(Branch).order_by(Branch.name))).scalars().all())
     lines = [
         t("branch_admin_line", lang,
-          status="🟢" if b.is_active else "🔴", name=b.name,
+          status=("🟢" if b.is_active else "🔴") + (
+              "📍" if (b.location_url or b.latitude is not None) else ""),
+          name=b.name,
           open=format_time(b.open_hour, b.open_minute),
           close=format_time(b.close_hour, b.close_minute), address=b.address)
         for b in branches
@@ -115,14 +117,20 @@ async def branch_open(message: Message, state: FSMContext, lang: str):
 
 
 @router.message(AddBranch.close_hour, F.text)
-async def branch_close(message: Message, state: FSMContext, lang: str, session_factory):
+async def branch_close(message: Message, state: FSMContext, lang: str):
     minutes = parse_time(message.text)
     data = await state.get_data()
     open_minutes = data["open_hour"] * 60 + data["open_minute"]
     if minutes is None or minutes <= open_minutes:
         await message.answer(t("hour_invalid", lang))
         return
-    close_hour, close_minute = minutes // 60, minutes % 60
+    await state.update_data(close_hour=minutes // 60, close_minute=minutes % 60)
+    await state.set_state(AddBranch.location)
+    await message.answer(t("ask_branch_location", lang))
+
+
+async def _finalize_branch(message, state, lang, session_factory, latitude, longitude, url):
+    data = await state.get_data()
     async with session_factory() as session:
         if data.get("edit_id"):
             branch = await session.get(Branch, data["edit_id"])
@@ -130,15 +138,36 @@ async def branch_close(message: Message, state: FSMContext, lang: str, session_f
             branch.address = data["address"]
             branch.open_hour = data["open_hour"]
             branch.open_minute = data["open_minute"]
-            branch.close_hour = close_hour
-            branch.close_minute = close_minute
+            branch.close_hour = data["close_hour"]
+            branch.close_minute = data["close_minute"]
+            branch.latitude = latitude
+            branch.longitude = longitude
+            branch.location_url = url
         else:
             session.add(Branch(
                 name=data["name"], address=data["address"],
                 open_hour=data["open_hour"], open_minute=data["open_minute"],
-                close_hour=close_hour, close_minute=close_minute, is_active=True,
+                close_hour=data["close_hour"], close_minute=data["close_minute"],
+                latitude=latitude, longitude=longitude, location_url=url, is_active=True,
             ))
         await session.commit()
     await state.clear()
     await message.answer(t("branch_saved", lang))
     await _render_branches(message, session_factory, lang)
+
+
+@router.message(AddBranch.location)
+async def branch_location(message: Message, state: FSMContext, lang: str, session_factory):
+    latitude = longitude = url = None
+    if message.location:
+        latitude, longitude = message.location.latitude, message.location.longitude
+    elif message.venue:
+        latitude, longitude = message.venue.location.latitude, message.venue.location.longitude
+    elif message.text and message.text.strip() == "-":
+        pass  # skip — leave location empty
+    elif message.text and message.text.strip().lower().startswith(("http://", "https://")):
+        url = message.text.strip()
+    else:
+        await message.answer(t("location_invalid", lang))
+        return
+    await _finalize_branch(message, state, lang, session_factory, latitude, longitude, url)

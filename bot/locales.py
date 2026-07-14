@@ -57,6 +57,9 @@ _STRINGS = {
         "ask_open_hour": "Время открытия (например: 11, 11:00 или 11:30):",
         "ask_close_hour": "Время закрытия (например: 22 или 22:30):",
         "hour_invalid": "Введите время в формате 11, 11:00 или 11:30.",
+        "ask_branch_location": "Отправьте локацию филиала: геолокацию Telegram (📎 → Локация) или ссылку на Яндекс/Google Карты. Отправьте «-», чтобы пропустить.",
+        "location_invalid": "Отправьте геолокацию Telegram или ссылку на карту (http…), либо «-», чтобы пропустить.",
+        "branch_location_link": "📍 {name}\n{address}\n{url}",
         "branch_saved": "Филиал сохранён.",
         "branch_toggled": "Филиал обновлён.",
         # excel export
@@ -145,6 +148,9 @@ _STRINGS = {
         "ask_open_hour": "Ochilish vaqti (masalan: 11, 11:00 yoki 11:30):",
         "ask_close_hour": "Yopilish vaqti (masalan: 22 yoki 22:30):",
         "hour_invalid": "Vaqtni 11, 11:00 yoki 11:30 shaklida kiriting.",
+        "ask_branch_location": "Filial lokatsiyasini yuboring: Telegram geolokatsiyasi (📎 → Lokatsiya) yoki Yandex/Google Xarita havolasi. O'tkazib yuborish uchun «-» yuboring.",
+        "location_invalid": "Telegram geolokatsiyasi yoki xarita havolasini (http…) yuboring, yoki o'tkazib yuborish uchun «-».",
+        "branch_location_link": "📍 {name}\n{address}\n{url}",
         "branch_saved": "Filial saqlandi.",
         "branch_toggled": "Filial yangilandi.",
         # excel export
