@@ -3,11 +3,32 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
 
 from bot.config import get_settings
 from bot.db.base import init_db, make_engine, make_session_factory
 from bot.handlers import admin, admin_branches, booking, mybookings, start
 from bot.middlewares.user import UserMiddleware
+
+DEFAULT_COMMANDS = [
+    BotCommand(command="start", description="Boshlash / Начать"),
+    BotCommand(command="mybookings", description="Mening bronlarim / Мои брони"),
+]
+ADMIN_COMMANDS = DEFAULT_COMMANDS + [
+    BotCommand(command="admin", description="Админ-панель"),
+    BotCommand(command="branches", description="Филиалы"),
+    BotCommand(command="stats", description="Статистика"),
+    BotCommand(command="users", description="Пользователи"),
+]
+
+
+async def setup_commands(bot: Bot, admin_ids) -> None:
+    await bot.set_my_commands(DEFAULT_COMMANDS, scope=BotCommandScopeDefault())
+    for admin_id in admin_ids:
+        try:
+            await bot.set_my_commands(ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception as exc:  # noqa: BLE001 - admin may not have opened the bot yet
+            logging.warning("Could not set admin commands for %s: %s", admin_id, exc)
 
 
 async def main() -> None:
@@ -33,6 +54,7 @@ async def main() -> None:
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
+        await setup_commands(bot, settings.admin_ids)
         await dp.start_polling(bot)
     finally:
         await bot.session.close()

@@ -41,6 +41,15 @@ async def cmd_branches(message: Message, session_factory):
     await _render_branches(message, session_factory)
 
 
+@router.callback_query(F.data == "adm:branches")
+async def panel_branches(cb: CallbackQuery, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        return
+    await _render_branches(cb.message, session_factory)
+    await cb.answer()
+
+
 @router.callback_query(F.data == "abranch:add")
 async def add_branch(cb: CallbackQuery, state: FSMContext):
     if not _is_admin(cb.from_user.id):

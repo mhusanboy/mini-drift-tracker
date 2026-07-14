@@ -4,14 +4,15 @@ from bot.config import Settings
 
 
 def test_admin_ids_parsed_from_csv():
-    s = Settings(bot_token="t", admin_ids_raw="111,222", db_path="x.db")
+    # _env_file=None keeps the test hermetic (ignores any repo .env).
+    s = Settings(bot_token="t", admin_ids_raw="111,222", db_path="x.db", _env_file=None)
     assert s.admin_ids == [111, 222]
     assert s.is_admin(111) is True
     assert s.is_admin(999) is False
 
 
 def test_admin_ids_empty():
-    s = Settings(bot_token="t", admin_ids_raw="", db_path="x.db")
+    s = Settings(bot_token="t", admin_ids_raw="", db_path="x.db", _env_file=None)
     assert s.admin_ids == []
 
 

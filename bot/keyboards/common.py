@@ -16,11 +16,13 @@ def language_kb() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
-def main_menu_kb(lang: str) -> InlineKeyboardMarkup:
+def main_menu_kb(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text=t("btn_book", lang), callback_data="menu:book")
     b.button(text=t("btn_my_bookings", lang), callback_data="menu:mybookings")
     b.button(text=t("btn_language", lang), callback_data="menu:language")
+    if is_admin:
+        b.button(text=t("btn_admin", lang), callback_data="adm:panel")
     b.adjust(1)
     return b.as_markup()
 

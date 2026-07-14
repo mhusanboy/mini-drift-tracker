@@ -3,6 +3,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
+from bot.config import get_settings
 from bot.db.models import User
 from bot.keyboards.common import language_kb, main_menu_kb, phone_kb
 from bot.locales import t
@@ -12,7 +13,8 @@ router = Router()
 
 
 async def show_main_menu_message(message: Message, lang: str) -> None:
-    await message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang))
+    is_admin = get_settings().is_admin(message.from_user.id)
+    await message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang, is_admin))
 
 
 @router.message(CommandStart())
@@ -34,7 +36,8 @@ async def pick_language(cb: CallbackQuery, state: FSMContext, user: User | None,
             db_user = await session.get(User, user.telegram_id)
             db_user.language = lang
             await session.commit()
-        await cb.message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang))
+        is_admin = get_settings().is_admin(cb.from_user.id)
+        await cb.message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang, is_admin))
         await cb.answer()
         return
     await state.update_data(language=lang)

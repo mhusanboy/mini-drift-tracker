@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.config import get_settings
+from bot.keyboards.admin import admin_panel_kb
 from bot.locales import t
 from bot.services import stats
 
@@ -17,20 +18,54 @@ def _is_admin(user_id: int) -> bool:
     return get_settings().is_admin(user_id)
 
 
-@router.message(Command("stats"))
-async def cmd_stats(message: Message, session_factory):
+async def _show_panel(target, lang: str) -> None:
+    await target.answer(t("admin_panel_title", lang), reply_markup=admin_panel_kb(lang))
+
+
+@router.message(Command("admin"))
+async def cmd_admin(message: Message, lang: str):
     if not _is_admin(message.from_user.id):
         await message.answer(t("not_authorized", LANG))
         return
+    await _show_panel(message, lang)
+
+
+@router.callback_query(F.data == "adm:panel")
+async def panel(cb: CallbackQuery, lang: str):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        return
+    await _show_panel(cb.message, lang)
+    await cb.answer()
+
+
+async def _send_stats(target, session_factory) -> None:
     async with session_factory() as session:
         ov = await stats.overview(session, date.today())
     by_branch = "\n".join(
         t("stats_branch_line", LANG, name=n, count=c) for n, c in ov["by_branch"]
     ) or "—"
-    await message.answer(t(
+    await target.answer(t(
         "stats_overview", LANG, users=ov["users"], bookings=ov["bookings"],
         today=ov["today"], by_branch=by_branch,
     ))
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message, session_factory):
+    if not _is_admin(message.from_user.id):
+        await message.answer(t("not_authorized", LANG))
+        return
+    await _send_stats(message, session_factory)
+
+
+@router.callback_query(F.data == "adm:stats")
+async def panel_stats(cb: CallbackQuery, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        return
+    await _send_stats(cb.message, session_factory)
+    await cb.answer()
 
 
 def _users_page_kb(page: int, pages: int):
@@ -61,6 +96,15 @@ async def cmd_users(message: Message, session_factory):
         await message.answer(t("not_authorized", LANG))
         return
     await _render_users(message, 1, session_factory)
+
+
+@router.callback_query(F.data == "adm:users")
+async def panel_users(cb: CallbackQuery, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        return
+    await _render_users(cb.message, 1, session_factory)
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("users:page:"))
