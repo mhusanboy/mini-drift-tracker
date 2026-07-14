@@ -39,17 +39,30 @@ web dashboard, DB migration tooling, multi-instance deployment.
 ### Key modeling decision — slots are computed, not stored
 
 Each hourly slot holds exactly **one group** (the service has effectively one
-kart/track resource per branch at a time; number of people is informational
-only). Rather than materialize empty slot rows, availability is computed:
+kart/track resource per branch at a time). Rather than materialize empty slot
+rows, availability is computed:
 
 - A branch defines `open_hour` and `close_hour` (integers, 24h).
 - For a given `(branch, date)`, the candidate start hours are
   `range(open_hour, close_hour)`.
-- A confirmed `Booking` row **is** the occupancy. Free hours =
-  candidate hours minus hours that already have a confirmed booking.
-- A DB unique constraint on `(branch_id, date, start_hour)` for confirmed
-  bookings prevents double-booking even under a race between listing and
-  confirming.
+- A confirmed `Booking` row **is** the occupancy. It spans
+  `num_hours = ceil(people / 6)` consecutive hours starting at `start_hour`
+  (see the duration rule below), so free hours = candidate hours minus every
+  hour covered by a confirmed booking's `[start_hour, start_hour + num_hours)`
+  span.
+- A DB partial unique index on `(branch_id, date, start_hour)` for confirmed
+  bookings backstops exact-start duplicates; overlap across differing start
+  hours is prevented by an application-level check inside the create
+  transaction (SQLite serializes writes, so read-then-insert is effectively
+  atomic for this single-process bot).
+
+### Booking duration rule
+
+The number of people determines how many consecutive hours are reserved:
+`num_hours = ceil(people / 6)` (min 1). So 1–6 people → 1 hour, 7–12 → 2 hours,
+13–18 → 3 hours, and so on. `people_count` is otherwise informational. If the
+computed span would run past the branch's `close_hour`, the booking is rejected
+and the user is asked to pick an earlier start time (or a different day).
 
 ## 3. Data model
 
@@ -81,7 +94,8 @@ only). Rather than materialize empty slot rows, availability is computed:
 | `branch_id` | int, FK → Branch.id | |
 | `date` | date | booking day |
 | `start_hour` | int | 0–23 |
-| `people_count` | int | informational, ≥ 1 |
+| `num_hours` | int | consecutive hours reserved = `ceil(people/6)` |
+| `people_count` | int | group size, ≥ 1 |
 | `status` | str | `confirmed` or `cancelled` |
 | `created_at` | datetime | |
 
@@ -108,8 +122,9 @@ Book a slot:
  └─ choose branch      [inline, active branches]
   → choose day         [inline, next 7 days incl. today]
   → choose start time  [inline, only FREE hours for that branch+day]
-  → enter № of people  [text, validated positive int]
-  → confirm            [inline: Confirm / Cancel — shows full summary]
+  → enter № of people  [text, positive int → span = ceil(people/6) hours;
+                        if span runs past closing, ask for an earlier time]
+  → confirm            [inline: Confirm / Cancel — summary incl. end time]
   → create booking → notify admins → success message
 ```
 

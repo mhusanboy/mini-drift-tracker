@@ -11,6 +11,14 @@ def test_next_days_count_and_start():
     assert days[-1] == date(2026, 7, 19)
 
 
+def test_hours_needed():
+    assert slots.hours_needed(1) == 1
+    assert slots.hours_needed(6) == 1
+    assert slots.hours_needed(7) == 2
+    assert slots.hours_needed(12) == 2
+    assert slots.hours_needed(13) == 3
+
+
 async def _seed(session_factory):
     async with session_factory() as s:
         s.add(User(telegram_id=1, full_name="A", phone="+1"))
@@ -58,6 +66,44 @@ async def test_create_booking_double_returns_none(session_factory):
         assert first is not None
         second = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 4)
         assert second is None
+
+
+async def test_create_booking_stores_num_hours(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        # 7 people -> 2 hours
+        b = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 7)
+        assert b.num_hours == 2
+
+
+async def test_free_hours_excludes_full_multi_hour_span(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        # Branch 1: open 10, close 14. Book 10:00 for 7 people -> covers 10, 11.
+        await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 7)
+        b = await slots.get_branch(s, 1)
+        hours = await slots.free_hours(s, b, date(2026, 7, 20), datetime(2026, 7, 13, 8, 0))
+        assert hours == [12, 13]
+
+
+async def test_create_booking_rejects_span_past_closing(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        # Branch 1 closes at 14. Start 13 with 7 people needs 2h (13,14) -> past close.
+        assert await slots.create_booking(s, 1, 1, date(2026, 7, 20), 13, 7) is None
+        # A 1-hour booking at 13 fits (ends at 14).
+        assert await slots.create_booking(s, 1, 1, date(2026, 7, 20), 13, 6) is not None
+
+
+async def test_create_booking_rejects_overlap_with_different_start(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        # Book 10:00 for 2h (covers 10, 11).
+        assert await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 7) is not None
+        # Booking starting at 11 overlaps the second hour of the first booking.
+        assert await slots.create_booking(s, 1, 1, date(2026, 7, 20), 11, 1) is None
+        # 12:00 is free.
+        assert await slots.create_booking(s, 1, 1, date(2026, 7, 20), 12, 1) is not None
 
 
 async def test_cancel_frees_slot_and_allows_rebook(session_factory):

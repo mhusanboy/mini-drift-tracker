@@ -55,6 +55,7 @@ class Booking(Base):
     branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
     start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    num_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     people_count: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.CONFIRMED)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

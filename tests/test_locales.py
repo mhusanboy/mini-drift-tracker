@@ -6,8 +6,8 @@ def test_returns_localized_string():
 
 
 def test_formatting_kwargs():
-    msg = t("booking_confirmed", "ru", branch="Main", date="2026-07-20", hour=10)
-    assert "Main" in msg and "10" in msg
+    msg = t("booking_confirmed", "ru", branch="Main", date="2026-07-20", hour=10, end=12, hours=2)
+    assert "Main" in msg and "10" in msg and "12" in msg
 
 
 def test_unknown_lang_falls_back_to_ru():

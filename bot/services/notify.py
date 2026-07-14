@@ -20,7 +20,8 @@ async def notify_new_booking(bot: Bot, admin_ids, booking, user) -> None:
     text = t(
         "admin_new_booking", ADMIN_LANG,
         branch=booking.branch.name, date=booking.date.isoformat(),
-        hour=booking.start_hour, people=booking.people_count,
+        hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
+        hours=booking.num_hours, people=booking.people_count,
         name=user.full_name, phone=user.phone,
     )
     for admin_id in admin_ids:
@@ -31,7 +32,8 @@ async def notify_cancellation(bot: Bot, admin_ids, booking, user) -> None:
     text = t(
         "admin_cancelled", ADMIN_LANG,
         branch=booking.branch.name, date=booking.date.isoformat(),
-        hour=booking.start_hour, name=user.full_name, phone=user.phone,
+        hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
+        name=user.full_name, phone=user.phone,
     )
     for admin_id in admin_ids:
         await _safe_send(bot, admin_id, text)

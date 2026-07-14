@@ -73,13 +73,29 @@ async def enter_people(message: Message, state: FSMContext, lang: str, session_f
     if not text.isdigit() or int(text) < 1:
         await message.answer(t("people_invalid", lang))
         return
-    data = await state.update_data(people=int(text))
+    people = int(text)
+    num_hours = slots.hours_needed(people)
+    data = await state.get_data()
+    day = date.fromisoformat(data["day"])
     async with session_factory() as session:
         branch = await slots.get_branch(session, data["branch_id"])
+        if not slots.span_fits(branch, data["hour"], num_hours):
+            # The group needs more consecutive hours than remain before closing.
+            hours = await slots.free_hours(session, branch, day, _now())
+            if hours:
+                await state.set_state(Booking.time)
+                await message.answer(t("not_enough_time", lang, hours=num_hours),
+                                     reply_markup=times_kb(hours, lang))
+            else:
+                await state.set_state(Booking.day)
+                await message.answer(t("no_slots", lang),
+                                     reply_markup=days_kb(slots.next_days(_now().date()), lang))
+            return
+    await state.update_data(people=people, num_hours=num_hours)
     await state.set_state(Booking.confirm)
     await message.answer(
         t("confirm_title", lang, branch=branch.name, date=data["day"],
-          hour=data["hour"], people=data["people"]),
+          hour=data["hour"], end=data["hour"] + num_hours, hours=num_hours, people=people),
         reply_markup=confirm_kb(lang),
     )
 
@@ -113,7 +129,8 @@ async def confirm_yes(cb: CallbackQuery, state: FSMContext, lang: str, bot: Bot,
         booking.branch = branch
     await state.clear()
     await cb.message.answer(
-        t("booking_confirmed", lang, branch=branch.name, date=data["day"], hour=data["hour"])
+        t("booking_confirmed", lang, branch=branch.name, date=data["day"],
+          hour=data["hour"], end=data["hour"] + booking.num_hours, hours=booking.num_hours)
     )
     await notify.notify_new_booking(bot, get_settings().admin_ids, booking, user)
     await cb.answer()

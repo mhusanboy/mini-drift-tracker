@@ -2027,6 +2027,28 @@ git commit -m "feat: wire dispatcher entrypoint and add README"
 
 ---
 
+## Addendum (2026-07-14) — implementation deltas
+
+Two changes made during execution, both covered by tests:
+
+1. **Booking duration rule.** A booking now reserves
+   `num_hours = ceil(people / 6)` consecutive hours (1–6 people → 1h, 7–12 → 2h,
+   …). `Booking` gained a `num_hours` column. `bot/services/slots.py` adds
+   `hours_needed(people)` and `span_fits(branch, start, num_hours)`;
+   `free_hours` now excludes every hour covered by a booking's full span, and
+   `create_booking` computes the span, rejects it if it runs past `close_hour`
+   or overlaps an existing booking. The booking handler asks for an earlier
+   start time when the span doesn't fit; confirm/summary/notification messages
+   show the end time. Overlap across differing start hours is guarded at the
+   application layer inside the create transaction (SQLite serializes writes).
+
+2. **Config env parsing.** `NoDecode` is unavailable in pydantic-settings
+   2.5.2, and a `list[int]` env field is JSON-decoded (so `ADMIN_IDS=111,222`
+   would crash and `ADMIN_IDS=999` would mis-parse). Fixed by storing
+   `admin_ids_raw: str` (alias `ADMIN_IDS`) and exposing a parsed
+   `admin_ids` property. Also: test fixtures use `StaticPool` so the in-memory
+   SQLite schema is shared across sessions.
+
 ## Self-Review Notes
 
 - **Spec coverage:** registration+language (T9), phone share-only (T9), booking flow (T10), computed slots+double-book guard (T2/T4/T10), my-bookings+cancel (T11), admin notifications (T8/T10/T11), stats overview+per-user (T5/T12), branch management (T13), ru/uz i18n (T3), SQLite/SQLAlchemy async (T2), project structure (all). All spec sections map to a task.
