@@ -2,13 +2,14 @@ from datetime import date
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.config import get_settings
 from bot.keyboards.admin import admin_panel_kb
 from bot.locales import t
 from bot.services import stats
+from bot.services.export import build_stats_workbook
 
 router = Router()
 
@@ -113,4 +114,32 @@ async def users_page(cb: CallbackQuery, lang: str, session_factory):
         return
     page = int(cb.data.split(":")[2])
     await _render_users(cb.message, page, session_factory, lang)
+    await cb.answer()
+
+
+async def _send_export(target, session_factory, lang: str) -> None:
+    today = date.today()
+    async with session_factory() as session:
+        overview = await stats.overview(session, today)
+        users = await stats.all_user_stats(session)
+        bookings = await stats.all_bookings(session)
+    data = build_stats_workbook(overview, users, bookings, today, lang)
+    document = BufferedInputFile(data, filename=f"carting-stats-{today.isoformat()}.xlsx")
+    await target.answer_document(document, caption=t("xls_caption", lang, date=today.isoformat()))
+
+
+@router.message(Command("export"))
+async def cmd_export(message: Message, lang: str, session_factory):
+    if not _is_admin(message.from_user.id):
+        await message.answer(t("not_authorized", lang))
+        return
+    await _send_export(message, session_factory, lang)
+
+
+@router.callback_query(F.data == "adm:export")
+async def panel_export(cb: CallbackQuery, lang: str, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", lang), show_alert=True)
+        return
+    await _send_export(cb.message, session_factory, lang)
     await cb.answer()

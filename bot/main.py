@@ -15,10 +15,11 @@ DEFAULT_COMMANDS = [
     BotCommand(command="mybookings", description="Mening bronlarim / Мои брони"),
 ]
 ADMIN_COMMANDS = DEFAULT_COMMANDS + [
-    BotCommand(command="admin", description="Админ-панель"),
-    BotCommand(command="branches", description="Филиалы"),
-    BotCommand(command="stats", description="Статистика"),
-    BotCommand(command="users", description="Пользователи"),
+    BotCommand(command="admin", description="Админ-панель / Admin panel"),
+    BotCommand(command="branches", description="Филиалы / Filiallar"),
+    BotCommand(command="stats", description="Статистика / Statistika"),
+    BotCommand(command="users", description="Пользователи / Foydalanuvchilar"),
+    BotCommand(command="export", description="Excel"),
 ]
 
 

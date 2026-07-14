@@ -13,5 +13,7 @@ def test_main_menu_shows_admin_button_only_for_admins():
     assert _callbacks(main_menu_kb("uz")) == ["menu:book", "menu:mybookings", "menu:language"]
 
 
-def test_admin_panel_kb_has_three_actions():
-    assert _callbacks(admin_panel_kb("ru")) == ["adm:branches", "adm:stats", "adm:users"]
+def test_admin_panel_kb_actions():
+    assert _callbacks(admin_panel_kb("ru")) == [
+        "adm:branches", "adm:stats", "adm:users", "adm:export",
+    ]

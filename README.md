@@ -41,6 +41,11 @@ python -m pytest -v
     closing hour becomes a bookable slot (e.g. open 10, close 22 → 10:00…21:00).
     A customer's slot spans `ceil(people / 6)` consecutive hours.
   - `/stats` — totals + per-branch counts. `/users` — per-customer analytics.
+  - **📊 Excel export** (panel button or `/export`) — sends an `.xlsx` workbook
+    with three sheets: **Overview** (totals + per-branch breakdown),
+    **Customers** (per-user analytics for promotions), and **Bookings** (every
+    booking, including cancellations). Sheet names and headers are in the
+    admin's language.
   - Edit or activate/deactivate a branch from the same **Branches** view.
 
 ## Architecture

@@ -167,6 +167,12 @@ a language. Each admin is notified in their own language.
 - **`/users`** — paginated per-user analytics: full name, phone, total
   bookings, total people brought, first seen, last booking date, favorite
   branch (most-booked).
+- **📊 Excel export** (panel button / `/export`) — an `.xlsx` workbook with a
+  sheet per stat type: **Overview** (headline totals + per-branch breakdown),
+  **Customers** (per-user analytics), **Bookings** (every booking incl.
+  cancellations). Built with `openpyxl` in `bot/services/export.py` (a pure
+  function over fetched data) and sent as a document; sheet names/headers are in
+  the admin's language.
 - **Branch management `/branches`:** list branches with inline buttons:
   - **Add** (FSM: name → address → open hour → close hour).
   - **Edit** (re-run the same fields).

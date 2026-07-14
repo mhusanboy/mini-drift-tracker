@@ -9,6 +9,7 @@ def admin_panel_kb(lang: str) -> InlineKeyboardMarkup:
     b.button(text=t("btn_admin_branches", lang), callback_data="adm:branches")
     b.button(text=t("btn_admin_stats", lang), callback_data="adm:stats")
     b.button(text=t("btn_admin_users", lang), callback_data="adm:users")
+    b.button(text=t("btn_admin_export", lang), callback_data="adm:export")
     b.adjust(1)
     return b.as_markup()
 
