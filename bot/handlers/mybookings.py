@@ -50,5 +50,5 @@ async def cancel_booking(cb: CallbackQuery, lang: str, bot: Bot, session_factory
         await cb.answer()
         return
     await cb.message.answer(t("booking_cancelled_user", lang))
-    await notify.notify_cancellation(bot, get_settings().admin_ids, booking, user)
+    await notify.notify_cancellation(bot, session_factory, get_settings().admin_ids, booking, user)
     await cb.answer()

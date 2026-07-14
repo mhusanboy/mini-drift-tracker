@@ -150,6 +150,14 @@ accepted. Typed text at that step is rejected with a reminder to use the button.
 Admins = Telegram user ids in `ADMIN_IDS`. Admin commands are ignored (or
 answered with "not authorized") for non-admins.
 
+**Discoverability & language.** Admins get a **🔧 Admin panel** button in the
+main menu (also `/admin`) leading to Branches / Stats / Users; the panel is
+hidden from non-admins. The bot also registers Telegram's command list (admin
+commands scoped per admin chat). All admin output — panel, stats, branch
+management, and notifications — is rendered in the **admin's own chosen
+language** (uz or ru), falling back to Russian if the admin has not registered
+a language. Each admin is notified in their own language.
+
 - **New-booking notification:** on confirm, DM every admin with branch, date,
   time, people count, and customer full name + phone.
 - **Cancellation notification:** on user cancel, DM every admin with the freed

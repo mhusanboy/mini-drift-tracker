@@ -132,5 +132,5 @@ async def confirm_yes(cb: CallbackQuery, state: FSMContext, lang: str, bot: Bot,
         t("booking_confirmed", lang, branch=branch.name, date=data["day"],
           hour=data["hour"], end=data["hour"] + booking.num_hours, hours=booking.num_hours)
     )
-    await notify.notify_new_booking(bot, get_settings().admin_ids, booking, user)
+    await notify.notify_new_booking(bot, session_factory, get_settings().admin_ids, booking, user)
     await cb.answer()

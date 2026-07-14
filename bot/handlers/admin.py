@@ -11,7 +11,6 @@ from bot.locales import t
 from bot.services import stats
 
 router = Router()
-LANG = "ru"
 
 
 def _is_admin(user_id: int) -> bool:
@@ -25,7 +24,7 @@ async def _show_panel(target, lang: str) -> None:
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, lang: str):
     if not _is_admin(message.from_user.id):
-        await message.answer(t("not_authorized", LANG))
+        await message.answer(t("not_authorized", lang))
         return
     await _show_panel(message, lang)
 
@@ -33,38 +32,38 @@ async def cmd_admin(message: Message, lang: str):
 @router.callback_query(F.data == "adm:panel")
 async def panel(cb: CallbackQuery, lang: str):
     if not _is_admin(cb.from_user.id):
-        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        await cb.answer(t("not_authorized", lang), show_alert=True)
         return
     await _show_panel(cb.message, lang)
     await cb.answer()
 
 
-async def _send_stats(target, session_factory) -> None:
+async def _send_stats(target, session_factory, lang: str) -> None:
     async with session_factory() as session:
         ov = await stats.overview(session, date.today())
     by_branch = "\n".join(
-        t("stats_branch_line", LANG, name=n, count=c) for n, c in ov["by_branch"]
+        t("stats_branch_line", lang, name=n, count=c) for n, c in ov["by_branch"]
     ) or "—"
     await target.answer(t(
-        "stats_overview", LANG, users=ov["users"], bookings=ov["bookings"],
+        "stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
         today=ov["today"], by_branch=by_branch,
     ))
 
 
 @router.message(Command("stats"))
-async def cmd_stats(message: Message, session_factory):
+async def cmd_stats(message: Message, lang: str, session_factory):
     if not _is_admin(message.from_user.id):
-        await message.answer(t("not_authorized", LANG))
+        await message.answer(t("not_authorized", lang))
         return
-    await _send_stats(message, session_factory)
+    await _send_stats(message, session_factory, lang)
 
 
 @router.callback_query(F.data == "adm:stats")
-async def panel_stats(cb: CallbackQuery, session_factory):
+async def panel_stats(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
-        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _send_stats(cb.message, session_factory)
+    await _send_stats(cb.message, session_factory, lang)
     await cb.answer()
 
 
@@ -77,12 +76,12 @@ def _users_page_kb(page: int, pages: int):
     return b.as_markup()
 
 
-async def _render_users(target, page: int, session_factory):
+async def _render_users(target, page: int, session_factory, lang: str):
     async with session_factory() as session:
         rows, pages = await stats.user_stats_page(session, page)
-    header = t("users_header", LANG, page=page, pages=pages)
+    header = t("users_header", lang, page=page, pages=pages)
     cards = "\n\n".join(
-        t("user_card", LANG, name=r.name, phone=r.phone, bookings=r.bookings,
+        t("user_card", lang, name=r.name, phone=r.phone, bookings=r.bookings,
           people=r.people, first=r.first_seen, last=r.last_booking or "—",
           fav=r.favorite_branch or "—")
         for r in rows
@@ -91,27 +90,27 @@ async def _render_users(target, page: int, session_factory):
 
 
 @router.message(Command("users"))
-async def cmd_users(message: Message, session_factory):
+async def cmd_users(message: Message, lang: str, session_factory):
     if not _is_admin(message.from_user.id):
-        await message.answer(t("not_authorized", LANG))
+        await message.answer(t("not_authorized", lang))
         return
-    await _render_users(message, 1, session_factory)
+    await _render_users(message, 1, session_factory, lang)
 
 
 @router.callback_query(F.data == "adm:users")
-async def panel_users(cb: CallbackQuery, session_factory):
+async def panel_users(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
-        await cb.answer(t("not_authorized", LANG), show_alert=True)
+        await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _render_users(cb.message, 1, session_factory)
+    await _render_users(cb.message, 1, session_factory, lang)
     await cb.answer()
 
 
 @router.callback_query(F.data.startswith("users:page:"))
-async def users_page(cb: CallbackQuery, session_factory):
+async def users_page(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer()
         return
     page = int(cb.data.split(":")[2])
-    await _render_users(cb.message, page, session_factory)
+    await _render_users(cb.message, page, session_factory, lang)
     await cb.answer()

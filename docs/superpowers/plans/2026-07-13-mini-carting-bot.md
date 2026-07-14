@@ -2029,6 +2029,13 @@ git commit -m "feat: wire dispatcher entrypoint and add README"
 
 ## Addendum (2026-07-14) — implementation deltas
 
+> **Note on admin language:** the original Task 8 said admin messages are
+> "always in `ru`". This was later changed — admin output and notifications now
+> render in each admin's chosen language (uz/ru, default ru). `notify_*` gained
+> a `session_factory` argument to look up each admin's language. A discoverable
+> **🔧 Admin panel** (button + `/admin`) and a registered Telegram command list
+> were also added. See the spec's Admin section.
+
 Two changes made during execution, both covered by tests:
 
 1. **Booking duration rule.** A booking now reserves
