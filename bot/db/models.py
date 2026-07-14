@@ -1,0 +1,74 @@
+from datetime import date, datetime
+
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    func,
+    text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from bot.db.base import Base
+
+
+class BookingStatus:
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    telegram_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    full_name: Mapped[str] = mapped_column(String, nullable=False)
+    phone: Mapped[str] = mapped_column(String, nullable=False)
+    language: Mapped[str] = mapped_column(String, nullable=False, default="ru")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="user")
+
+
+class Branch(Base):
+    __tablename__ = "branches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    address: Mapped[str] = mapped_column(String, nullable=False)
+    open_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    close_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="branch")
+
+
+class Booking(Base):
+    __tablename__ = "bookings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    people_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.CONFIRMED)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="bookings")
+    branch: Mapped["Branch"] = relationship(back_populates="bookings")
+
+    __table_args__ = (
+        Index(
+            "uq_booking_confirmed_slot",
+            "branch_id",
+            "date",
+            "start_hour",
+            unique=True,
+            sqlite_where=text("status = 'confirmed'"),
+        ),
+    )
