@@ -1,22 +1,24 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", populate_by_name=True
+    )
 
     bot_token: str
-    admin_ids: list[int] = []
+    # Kept as a raw string so pydantic-settings does not JSON-decode it (a
+    # ``list[int]`` field would try ``json.loads("111,222")`` and crash). The
+    # parsed list is exposed via the ``admin_ids`` property below.
+    admin_ids_raw: str = Field(default="", validation_alias="ADMIN_IDS")
     db_path: str = "carting.db"
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def _parse_admin_ids(cls, v):
-        if isinstance(v, str):
-            return [int(x) for x in v.split(",") if x.strip()]
-        return v
+    @property
+    def admin_ids(self) -> list[int]:
+        return [int(x) for x in self.admin_ids_raw.split(",") if x.strip()]
 
     def is_admin(self, user_id: int) -> bool:
         return user_id in self.admin_ids
