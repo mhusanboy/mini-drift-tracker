@@ -7,7 +7,9 @@ def test_returns_localized_string():
 
 def test_formatting_kwargs():
     msg = t("booking_confirmed", "ru", date="2026-07-20", hour=10, end=12, hours=2)
-    assert "2026-07-20" in msg and "10" in msg and "12" in msg
+    assert "2026-07-20" in msg and "10:00" in msg
+    # Duration / end time is admin-only; the customer message must not show it.
+    assert "12:00" not in msg and "2 ч" not in msg
 
 
 def test_unknown_lang_falls_back_to_ru():
