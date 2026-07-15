@@ -7,6 +7,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.config import get_settings
+from bot.handlers.ui import edit_screen
 from bot.keyboards.admin import admin_panel_kb
 from bot.keyboards.common import back_kb, with_back
 from bot.locales import t
@@ -20,16 +21,14 @@ def _is_admin(user_id: int) -> bool:
     return get_settings().is_admin(user_id)
 
 
-async def _show_panel(target, lang: str) -> None:
-    await target.answer(t("admin_panel_title", lang), reply_markup=admin_panel_kb(lang))
-
+# --- Panel ------------------------------------------------------------------
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, lang: str):
     if not _is_admin(message.from_user.id):
         await message.answer(t("not_authorized", lang))
         return
-    await _show_panel(message, lang)
+    await message.answer(t("admin_panel_title", lang), reply_markup=admin_panel_kb(lang))
 
 
 @router.callback_query(F.data.in_({"adm:panel", "back:panel"}))
@@ -38,18 +37,18 @@ async def panel(cb: CallbackQuery, state: FSMContext, lang: str):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
     await state.clear()
-    await _show_panel(cb.message, lang)
+    await edit_screen(cb, t("admin_panel_title", lang), admin_panel_kb(lang))
     await cb.answer()
 
 
-async def _send_stats(target, session_factory, lang: str) -> None:
+# --- Stats ------------------------------------------------------------------
+
+async def _stats_content(session_factory, lang: str):
     async with session_factory() as session:
         ov = await stats.overview(session, date.today())
-    await target.answer(
-        t("stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
-          today=ov["today"], people=ov["people"], hours=ov["hours"]),
-        reply_markup=back_kb("back:panel", lang),
-    )
+    text = t("stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
+             today=ov["today"], people=ov["people"], hours=ov["hours"])
+    return text, back_kb("back:panel", lang)
 
 
 @router.message(Command("stats"))
@@ -57,7 +56,8 @@ async def cmd_stats(message: Message, lang: str, session_factory):
     if not _is_admin(message.from_user.id):
         await message.answer(t("not_authorized", lang))
         return
-    await _send_stats(message, session_factory, lang)
+    text, markup = await _stats_content(session_factory, lang)
+    await message.answer(text, reply_markup=markup)
 
 
 @router.callback_query(F.data == "adm:stats")
@@ -65,9 +65,12 @@ async def panel_stats(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _send_stats(cb.message, session_factory, lang)
+    text, markup = await _stats_content(session_factory, lang)
+    await edit_screen(cb, text, markup)
     await cb.answer()
 
+
+# --- Users ------------------------------------------------------------------
 
 def _users_page_kb(page: int, pages: int, lang: str):
     b = InlineKeyboardBuilder()
@@ -78,7 +81,7 @@ def _users_page_kb(page: int, pages: int, lang: str):
     return with_back(b.as_markup(), "back:panel", lang)
 
 
-async def _render_users(target, page: int, session_factory, lang: str):
+async def _users_content(page: int, session_factory, lang: str):
     async with session_factory() as session:
         rows, pages = await stats.user_stats_page(session, page)
     header = t("users_header", lang, page=page, pages=pages)
@@ -87,7 +90,7 @@ async def _render_users(target, page: int, session_factory, lang: str):
           people=r.people, first=r.first_seen, last=r.last_booking or "—")
         for r in rows
     ) or "—"
-    await target.answer(header + "\n\n" + cards, reply_markup=_users_page_kb(page, pages, lang))
+    return header + "\n\n" + cards, _users_page_kb(page, pages, lang)
 
 
 @router.message(Command("users"))
@@ -95,7 +98,8 @@ async def cmd_users(message: Message, lang: str, session_factory):
     if not _is_admin(message.from_user.id):
         await message.answer(t("not_authorized", lang))
         return
-    await _render_users(message, 1, session_factory, lang)
+    text, markup = await _users_content(1, session_factory, lang)
+    await message.answer(text, reply_markup=markup)
 
 
 @router.callback_query(F.data == "adm:users")
@@ -103,7 +107,8 @@ async def panel_users(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _render_users(cb.message, 1, session_factory, lang)
+    text, markup = await _users_content(1, session_factory, lang)
+    await edit_screen(cb, text, markup)
     await cb.answer()
 
 
@@ -113,9 +118,12 @@ async def users_page(cb: CallbackQuery, lang: str, session_factory):
         await cb.answer()
         return
     page = int(cb.data.split(":")[2])
-    await _render_users(cb.message, page, session_factory, lang)
+    text, markup = await _users_content(page, session_factory, lang)
+    await edit_screen(cb, text, markup)
     await cb.answer()
 
+
+# --- Excel export -----------------------------------------------------------
 
 async def _send_export(target, session_factory, lang: str) -> None:
     today = date.today()
@@ -141,5 +149,6 @@ async def panel_export(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
+    # A document can't replace a text screen, so it's sent as a new message.
     await _send_export(cb.message, session_factory, lang)
     await cb.answer()

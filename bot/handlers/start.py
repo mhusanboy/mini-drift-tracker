@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
 from bot.config import get_settings
 from bot.db.models import User
+from bot.handlers.ui import edit_screen
 from bot.keyboards.common import language_kb, main_menu_kb, phone_kb
 from bot.locales import t
 from bot.services import slots
@@ -27,6 +28,8 @@ async def send_service_location(message: Message, service, lang: str) -> None:
 
 
 async def show_main_menu(message: Message, user_id: int, lang: str, session_factory) -> None:
+    """Fresh main menu (with the service location) — for /start and after
+    registration. Inline 'back to main' edits in place instead (no venue)."""
     async with session_factory() as session:
         service = await slots.get_service(session)
     if service is not None:
@@ -49,17 +52,18 @@ async def pick_language(cb: CallbackQuery, state: FSMContext, user: User | None,
                         session_factory):
     lang = cb.data.split(":", 1)[1]
     if user is not None:
-        # Language change from menu: persist immediately.
+        # Language change from menu: persist and edit back to the main menu.
         async with session_factory() as session:
             db_user = await session.get(User, user.telegram_id)
             db_user.language = lang
             await session.commit()
-        await show_main_menu(cb.message, cb.from_user.id, lang, session_factory)
+        is_admin = get_settings().is_admin(cb.from_user.id)
+        await edit_screen(cb, t("main_menu_title", lang), main_menu_kb(lang, is_admin))
         await cb.answer()
         return
     await state.update_data(language=lang)
     await state.set_state(Registration.full_name)
-    await cb.message.answer(t("ask_full_name", lang))
+    await edit_screen(cb, t("ask_full_name", lang))
     await cb.answer()
 
 
@@ -99,12 +103,13 @@ async def reg_phone_wrong(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "menu:language")
 async def menu_language(cb: CallbackQuery, lang: str):
-    await cb.message.answer(t("choose_language", lang), reply_markup=language_kb(lang, back="back:main"))
+    await edit_screen(cb, t("choose_language", lang), language_kb(lang, back="back:main"))
     await cb.answer()
 
 
 @router.callback_query(F.data == "back:main")
-async def back_to_main(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+async def back_to_main(cb: CallbackQuery, state: FSMContext, lang: str):
     await state.clear()
-    await show_main_menu(cb.message, cb.from_user.id, lang, session_factory)
+    is_admin = get_settings().is_admin(cb.from_user.id)
+    await edit_screen(cb, t("main_menu_title", lang), main_menu_kb(lang, is_admin))
     await cb.answer()

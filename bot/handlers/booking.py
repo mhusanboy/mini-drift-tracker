@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.config import get_settings
 from bot.db.models import User
+from bot.handlers.ui import edit_screen
 from bot.keyboards.booking import confirm_kb, days_kb, times_kb
 from bot.keyboards.common import back_kb
 from bot.locales import t
@@ -19,41 +20,37 @@ def _now() -> datetime:
     return datetime.now()
 
 
-@router.callback_query(F.data == "menu:book")
-async def start_booking(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
-    await _show_days(cb.message, state, lang, session_factory)
-    await cb.answer()
-
-
-async def _show_days(target, state: FSMContext, lang: str, session_factory) -> bool:
-    """Show the bookable-day picker. Returns False (with a message) if none."""
+async def _show_days(cb: CallbackQuery, state: FSMContext, lang: str, session_factory) -> None:
+    """Edit the current screen into the bookable-day picker (or alert if none)."""
     async with session_factory() as session:
         service = await slots.get_service(session)
         if service is None:
-            await target.answer(t("service_unavailable", lang))
-            return False
+            await cb.answer(t("service_unavailable", lang), show_alert=True)
+            return
         days = await slots.bookable_days(session, _now().date())
     if not days:
-        await target.answer(t("no_available_days", lang))
-        return False
+        await cb.answer(t("no_available_days", lang), show_alert=True)
+        return
     await state.update_data(branch_id=service.id)
     await state.set_state(Booking.day)
-    await target.answer(t("choose_day", lang), reply_markup=days_kb(days, _now().date(), lang))
-    return True
+    await edit_screen(cb, t("choose_day", lang), days_kb(days, _now().date(), lang))
+    await cb.answer()
+
+
+@router.callback_query(F.data == "menu:book")
+async def start_booking(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    await _show_days(cb, state, lang, session_factory)
 
 
 @router.callback_query(F.data == "back:days")
 async def back_to_days(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
-    await _show_days(cb.message, state, lang, session_factory)
-    await cb.answer()
+    await _show_days(cb, state, lang, session_factory)
 
 
-@router.callback_query(F.data == "back:times")
-async def back_to_times(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+async def _show_times(cb: CallbackQuery, state: FSMContext, lang: str, session_factory) -> None:
     data = await state.get_data()
     if "branch_id" not in data or "day" not in data:
-        await _show_days(cb.message, state, lang, session_factory)
-        await cb.answer()
+        await _show_days(cb, state, lang, session_factory)
         return
     day = date.fromisoformat(data["day"])
     async with session_factory() as session:
@@ -61,30 +58,23 @@ async def back_to_times(cb: CallbackQuery, state: FSMContext, lang: str, session
         offs = await slots.day_offs_in(session, [day])
         hours = await slots.free_hours(session, branch, day, _now(), day_off=(day in offs))
     if not hours:
-        await cb.message.answer(t("no_slots", lang))
-        await cb.answer()
+        await cb.answer(t("no_slots", lang), show_alert=True)
         return
     await state.set_state(Booking.time)
-    await cb.message.answer(t("choose_time", lang), reply_markup=times_kb(hours, lang))
+    await edit_screen(cb, t("choose_time", lang), times_kb(hours, lang))
     await cb.answer()
+
+
+@router.callback_query(F.data == "back:times")
+async def back_to_times(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    await _show_times(cb, state, lang, session_factory)
 
 
 @router.callback_query(Booking.day, F.data.startswith("day:"))
 async def pick_day(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
     day = date.fromisoformat(cb.data.split(":", 1)[1])
-    data = await state.get_data()
-    async with session_factory() as session:
-        branch = await slots.get_branch(session, data["branch_id"])
-        offs = await slots.day_offs_in(session, [day])
-        hours = await slots.free_hours(session, branch, day, _now(), day_off=(day in offs))
-    if not hours:
-        await cb.message.answer(t("no_slots", lang))
-        await cb.answer()
-        return
     await state.update_data(day=day.isoformat())
-    await state.set_state(Booking.time)
-    await cb.message.answer(t("choose_time", lang), reply_markup=times_kb(hours, lang))
-    await cb.answer()
+    await _show_times(cb, state, lang, session_factory)
 
 
 @router.callback_query(Booking.time, F.data.startswith("time:"))
@@ -92,7 +82,7 @@ async def pick_time(cb: CallbackQuery, state: FSMContext, lang: str):
     hour = int(cb.data.split(":")[1])
     await state.update_data(hour=hour)
     await state.set_state(Booking.people)
-    await cb.message.answer(t("ask_people", lang), reply_markup=back_kb("back:times", lang))
+    await edit_screen(cb, t("ask_people", lang), back_kb("back:times", lang))
     await cb.answer()
 
 
@@ -138,18 +128,20 @@ async def confirm_yes(cb: CallbackQuery, state: FSMContext, lang: str, bot: Bot,
             session, cb.from_user.id, data["branch_id"], day, data["hour"], data["people"]
         )
         if booking is None:
-            # Slot taken between listing and confirm -> re-list times.
+            # Slot taken between listing and confirm -> re-list times in place.
             branch = await slots.get_branch(session, data["branch_id"])
             hours = await slots.free_hours(session, branch, day, _now())
             await state.set_state(Booking.time)
-            await cb.message.answer(t("slot_taken", lang), reply_markup=times_kb(hours, lang))
+            await edit_screen(cb, t("slot_taken", lang), times_kb(hours, lang))
             await cb.answer()
             return
         user = await session.get(User, cb.from_user.id)
     await state.clear()
-    await cb.message.answer(
+    await edit_screen(
+        cb,
         t("booking_confirmed", lang, date=data["day"], hour=data["hour"],
-          end=data["hour"] + booking.num_hours, hours=booking.num_hours)
+          end=data["hour"] + booking.num_hours, hours=booking.num_hours),
+        back_kb("back:main", lang),
     )
     await notify.notify_new_booking(bot, session_factory, get_settings().admin_ids, booking, user)
     await cb.answer()

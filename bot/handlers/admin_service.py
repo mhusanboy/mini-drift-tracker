@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import get_settings
+from bot.handlers.ui import edit_screen
 from bot.keyboards.admin import service_edit_kb
 from bot.keyboards.common import back_kb
 from bot.locales import t
@@ -19,19 +20,16 @@ def _is_admin(user_id: int) -> bool:
     return get_settings().is_admin(user_id)
 
 
-async def _render_service(target, session_factory, lang: str) -> None:
+async def _service_content(session_factory, lang: str):
     async with session_factory() as session:
         service = await slots.get_service(session)
     if service is None:
-        await target.answer(t("service_not_set", lang), reply_markup=service_edit_kb(lang))
-        return
+        return t("service_not_set", lang), service_edit_kb(lang)
     loc = "📍" if (service.location_url or service.latitude is not None) else "—"
-    await target.answer(
-        t("service_line", lang, name=service.name, address=service.address,
-          open=format_time(service.open_hour, service.open_minute),
-          close=format_time(service.close_hour, service.close_minute), loc=loc),
-        reply_markup=service_edit_kb(lang),
-    )
+    text = t("service_line", lang, name=service.name, address=service.address,
+             open=format_time(service.open_hour, service.open_minute),
+             close=format_time(service.close_hour, service.close_minute), loc=loc)
+    return text, service_edit_kb(lang)
 
 
 @router.message(Command("service"))
@@ -39,7 +37,8 @@ async def cmd_service(message: Message, lang: str, session_factory):
     if not _is_admin(message.from_user.id):
         await message.answer(t("not_authorized", lang))
         return
-    await _render_service(message, session_factory, lang)
+    text, markup = await _service_content(session_factory, lang)
+    await message.answer(text, reply_markup=markup)
 
 
 @router.callback_query(F.data == "adm:service")
@@ -47,7 +46,8 @@ async def panel_service(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _render_service(cb.message, session_factory, lang)
+    text, markup = await _service_content(session_factory, lang)
+    await edit_screen(cb, text, markup)
     await cb.answer()
 
 
@@ -57,14 +57,15 @@ async def edit_service(cb: CallbackQuery, state: FSMContext, lang: str):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
     await state.set_state(EditService.name)
-    await cb.message.answer(t("ask_service_name", lang), reply_markup=back_kb(_BACK, lang))
+    await edit_screen(cb, t("ask_service_name", lang), back_kb(_BACK, lang))
     await cb.answer()
 
 
 @router.callback_query(F.data == "back:service")
 async def back_to_service(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
     await state.clear()
-    await _render_service(cb.message, session_factory, lang)
+    text, markup = await _service_content(session_factory, lang)
+    await edit_screen(cb, text, markup)
     await cb.answer()
 
 
@@ -129,4 +130,5 @@ async def service_location(message: Message, state: FSMContext, lang: str, sessi
         )
     await state.clear()
     await message.answer(t("service_saved", lang))
-    await _render_service(message, session_factory, lang)
+    text, markup = await _service_content(session_factory, lang)
+    await message.answer(text, reply_markup=markup)
