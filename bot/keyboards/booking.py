@@ -1,9 +1,9 @@
 from datetime import date
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.keyboards.common import back_button, day_label, with_back
+from bot.keyboards.common import day_label, with_back
 from bot.locales import t
 from bot.timeutil import fmt_minutes
 
@@ -17,22 +17,14 @@ def days_kb(days: list[date], today: date, lang: str) -> InlineKeyboardMarkup:
 
 
 def slots_kb(slots_min: list[int], lang: str) -> InlineKeyboardMarkup:
-    """Two columns: on-the-hour (:00) starts on the left, half-hour (:30) on the
-    right, zipped row by row (e.g. 11:00 | 11:30)."""
+    """Free start times in chronological order, two per row (e.g.
+    16:30 | 17:00 / 17:30 | 18:00). Whether a row starts on :00 or :30 just
+    depends on which slots are free."""
     b = InlineKeyboardBuilder()
-    on_hour = [m for m in slots_min if m % 60 == 0]
-    half = [m for m in slots_min if m % 60 == 30]
-    for i in range(max(len(on_hour), len(half))):
-        row = []
-        if i < len(on_hour):
-            row.append(InlineKeyboardButton(text=fmt_minutes(on_hour[i]),
-                                            callback_data=f"slot:{on_hour[i]}"))
-        if i < len(half):
-            row.append(InlineKeyboardButton(text=fmt_minutes(half[i]),
-                                            callback_data=f"slot:{half[i]}"))
-        b.row(*row)
-    b.row(back_button("back:days", lang))
-    return b.as_markup()
+    for m in sorted(slots_min):
+        b.button(text=fmt_minutes(m), callback_data=f"slot:{m}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:days", lang)
 
 
 def confirm_kb(lang: str) -> InlineKeyboardMarkup:
