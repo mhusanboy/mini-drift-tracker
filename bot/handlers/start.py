@@ -98,6 +98,13 @@ async def reg_phone_wrong(message: Message, state: FSMContext):
 
 
 @router.callback_query(F.data == "menu:language")
-async def menu_language(cb: CallbackQuery):
-    await cb.message.answer(t("choose_language", "ru"), reply_markup=language_kb())
+async def menu_language(cb: CallbackQuery, lang: str):
+    await cb.message.answer(t("choose_language", lang), reply_markup=language_kb(lang, back="back:main"))
+    await cb.answer()
+
+
+@router.callback_query(F.data == "back:main")
+async def back_to_main(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    await state.clear()
+    await show_main_menu(cb.message, cb.from_user.id, lang, session_factory)
     await cb.answer()

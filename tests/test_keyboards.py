@@ -15,5 +15,10 @@ def test_main_menu_shows_admin_button_only_for_admins():
 
 def test_admin_panel_kb_actions():
     assert _callbacks(admin_panel_kb("ru")) == [
-        "adm:service", "adm:bookings", "adm:dayoffs", "adm:stats", "adm:users", "adm:export",
+        "adm:service", "adm:bookings", "adm:dayoffs", "adm:stats", "adm:users",
+        "adm:export", "back:main",
     ]
+
+
+def test_main_menu_has_no_back():
+    assert "back:main" not in _callbacks(main_menu_kb("ru", is_admin=True))

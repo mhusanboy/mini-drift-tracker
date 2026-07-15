@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.config import get_settings
 from bot.db.models import User
 from bot.keyboards.booking import my_bookings_kb
+from bot.keyboards.common import back_kb
 from bot.locales import t
 from bot.services import notify, slots
 
@@ -17,7 +18,7 @@ async def _render_bookings(target, user_id: int, lang: str, session_factory) -> 
     async with session_factory() as session:
         bookings = await slots.upcoming_bookings(session, user_id, datetime.now())
     if not bookings:
-        await target.answer(t("my_bookings_empty", lang))
+        await target.answer(t("my_bookings_empty", lang), reply_markup=back_kb("back:main", lang))
         return
     lines = [
         t("booking_line", lang, date=b.date.isoformat(),

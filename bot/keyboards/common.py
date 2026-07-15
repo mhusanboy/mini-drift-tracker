@@ -1,6 +1,7 @@
 from datetime import date
 
 from aiogram.types import (
+    InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
@@ -10,12 +11,29 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.locales import LANGUAGES, t
 
 
-def language_kb() -> InlineKeyboardMarkup:
+def back_button(target: str, lang: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=t("back", lang), callback_data=target)
+
+
+def back_kb(target: str, lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[back_button(target, lang)]])
+
+
+def with_back(markup: InlineKeyboardMarkup, target: str, lang: str) -> InlineKeyboardMarkup:
+    """Append a Back button row to an existing inline keyboard."""
+    markup.inline_keyboard.append([back_button(target, lang)])
+    return markup
+
+
+def language_kb(lang: str = "ru", back: str | None = None) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     for code, label in LANGUAGES.items():
         b.button(text=label, callback_data=f"lang:{code}")
     b.adjust(1)
-    return b.as_markup()
+    markup = b.as_markup()
+    if back:
+        with_back(markup, back, lang)
+    return markup
 
 
 def main_menu_kb(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:

@@ -2,11 +2,13 @@ from datetime import date
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.config import get_settings
 from bot.keyboards.admin import admin_panel_kb
+from bot.keyboards.common import back_kb, with_back
 from bot.locales import t
 from bot.services import stats
 from bot.services.export import build_stats_workbook
@@ -30,11 +32,12 @@ async def cmd_admin(message: Message, lang: str):
     await _show_panel(message, lang)
 
 
-@router.callback_query(F.data == "adm:panel")
-async def panel(cb: CallbackQuery, lang: str):
+@router.callback_query(F.data.in_({"adm:panel", "back:panel"}))
+async def panel(cb: CallbackQuery, state: FSMContext, lang: str):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
+    await state.clear()
     await _show_panel(cb.message, lang)
     await cb.answer()
 
@@ -42,10 +45,11 @@ async def panel(cb: CallbackQuery, lang: str):
 async def _send_stats(target, session_factory, lang: str) -> None:
     async with session_factory() as session:
         ov = await stats.overview(session, date.today())
-    await target.answer(t(
-        "stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
-        today=ov["today"], people=ov["people"], hours=ov["hours"],
-    ))
+    await target.answer(
+        t("stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
+          today=ov["today"], people=ov["people"], hours=ov["hours"]),
+        reply_markup=back_kb("back:panel", lang),
+    )
 
 
 @router.message(Command("stats"))
@@ -65,13 +69,13 @@ async def panel_stats(cb: CallbackQuery, lang: str, session_factory):
     await cb.answer()
 
 
-def _users_page_kb(page: int, pages: int):
+def _users_page_kb(page: int, pages: int, lang: str):
     b = InlineKeyboardBuilder()
     if page > 1:
         b.button(text="⬅️", callback_data=f"users:page:{page - 1}")
     if page < pages:
         b.button(text="➡️", callback_data=f"users:page:{page + 1}")
-    return b.as_markup()
+    return with_back(b.as_markup(), "back:panel", lang)
 
 
 async def _render_users(target, page: int, session_factory, lang: str):
@@ -83,7 +87,7 @@ async def _render_users(target, page: int, session_factory, lang: str):
           people=r.people, first=r.first_seen, last=r.last_booking or "—")
         for r in rows
     ) or "—"
-    await target.answer(header + "\n\n" + cards, reply_markup=_users_page_kb(page, pages))
+    await target.answer(header + "\n\n" + cards, reply_markup=_users_page_kb(page, pages, lang))
 
 
 @router.message(Command("users"))

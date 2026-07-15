@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.config import get_settings
 from bot.db.models import User
 from bot.keyboards.booking import confirm_kb, days_kb, times_kb
+from bot.keyboards.common import back_kb
 from bot.locales import t
 from bot.services import notify, slots
 from bot.states import Booking
@@ -20,20 +21,51 @@ def _now() -> datetime:
 
 @router.callback_query(F.data == "menu:book")
 async def start_booking(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    await _show_days(cb.message, state, lang, session_factory)
+    await cb.answer()
+
+
+async def _show_days(target, state: FSMContext, lang: str, session_factory) -> bool:
+    """Show the bookable-day picker. Returns False (with a message) if none."""
     async with session_factory() as session:
         service = await slots.get_service(session)
         if service is None:
-            await cb.message.answer(t("service_unavailable", lang))
-            await cb.answer()
-            return
+            await target.answer(t("service_unavailable", lang))
+            return False
         days = await slots.bookable_days(session, _now().date())
     if not days:
-        await cb.message.answer(t("no_available_days", lang))
-        await cb.answer()
-        return
+        await target.answer(t("no_available_days", lang))
+        return False
     await state.update_data(branch_id=service.id)
     await state.set_state(Booking.day)
-    await cb.message.answer(t("choose_day", lang), reply_markup=days_kb(days, _now().date(), lang))
+    await target.answer(t("choose_day", lang), reply_markup=days_kb(days, _now().date(), lang))
+    return True
+
+
+@router.callback_query(F.data == "back:days")
+async def back_to_days(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    await _show_days(cb.message, state, lang, session_factory)
+    await cb.answer()
+
+
+@router.callback_query(F.data == "back:times")
+async def back_to_times(cb: CallbackQuery, state: FSMContext, lang: str, session_factory):
+    data = await state.get_data()
+    if "branch_id" not in data or "day" not in data:
+        await _show_days(cb.message, state, lang, session_factory)
+        await cb.answer()
+        return
+    day = date.fromisoformat(data["day"])
+    async with session_factory() as session:
+        branch = await slots.get_branch(session, data["branch_id"])
+        offs = await slots.day_offs_in(session, [day])
+        hours = await slots.free_hours(session, branch, day, _now(), day_off=(day in offs))
+    if not hours:
+        await cb.message.answer(t("no_slots", lang))
+        await cb.answer()
+        return
+    await state.set_state(Booking.time)
+    await cb.message.answer(t("choose_time", lang), reply_markup=times_kb(hours, lang))
     await cb.answer()
 
 
@@ -60,7 +92,7 @@ async def pick_time(cb: CallbackQuery, state: FSMContext, lang: str):
     hour = int(cb.data.split(":")[1])
     await state.update_data(hour=hour)
     await state.set_state(Booking.people)
-    await cb.message.answer(t("ask_people", lang))
+    await cb.message.answer(t("ask_people", lang), reply_markup=back_kb("back:times", lang))
     await cb.answer()
 
 
@@ -68,7 +100,7 @@ async def pick_time(cb: CallbackQuery, state: FSMContext, lang: str):
 async def enter_people(message: Message, state: FSMContext, lang: str, session_factory):
     text = message.text.strip()
     if not text.isdigit() or int(text) < 1:
-        await message.answer(t("people_invalid", lang))
+        await message.answer(t("people_invalid", lang), reply_markup=back_kb("back:times", lang))
         return
     people = int(text)
     num_hours = slots.hours_needed(people)
@@ -95,13 +127,6 @@ async def enter_people(message: Message, state: FSMContext, lang: str, session_f
           end=data["hour"] + num_hours, hours=num_hours, people=people),
         reply_markup=confirm_kb(lang),
     )
-
-
-@router.callback_query(Booking.confirm, F.data == "confirm:no")
-async def confirm_no(cb: CallbackQuery, state: FSMContext, lang: str):
-    await state.clear()
-    await cb.message.answer(t("cancelled_flow", lang))
-    await cb.answer()
 
 
 @router.callback_query(Booking.confirm, F.data == "confirm:yes")
