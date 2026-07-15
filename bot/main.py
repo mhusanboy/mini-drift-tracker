@@ -24,7 +24,7 @@ DEFAULT_COMMANDS = [
 ]
 ADMIN_COMMANDS = DEFAULT_COMMANDS + [
     BotCommand(command="admin", description="Админ-панель / Admin panel"),
-    BotCommand(command="service", description="Сервис / Xizmat"),
+    BotCommand(command="service", description="Настройки / Sozlamalar"),
     BotCommand(command="stats", description="Статистика / Statistika"),
     BotCommand(command="users", description="Пользователи / Foydalanuvchilar"),
     BotCommand(command="export", description="Excel"),

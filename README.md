@@ -37,7 +37,7 @@ python -m pytest -v
 - **Admins** (Telegram IDs listed in `ADMIN_IDS`): after `/start` the main menu
   shows a **🔧 Admin panel** button (also `/admin`). All admin output is in the
   admin's own language. Admins get a DM on each new booking/cancellation.
-  - **🔧 Service** (`/service`) — set/update the service: name → address →
+  - **⚙️ Settings** (`/service`) — set/update the service: name → address →
     opening time → closing time → **location** (Telegram location/venue, or a
     Yandex/Google Maps link; `-` to skip). Times accept `11`, `11:00`, `11:30`;
     a half-hour opening pushes the first slot to the next full hour. Bookable
