@@ -7,7 +7,15 @@ from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefaul
 
 from bot.config import get_settings
 from bot.db.base import init_db, make_engine, make_session_factory
-from bot.handlers import admin, admin_branches, booking, mybookings, start
+from bot.handlers import (
+    admin,
+    admin_bookings,
+    admin_dayoffs,
+    admin_service,
+    booking,
+    mybookings,
+    start,
+)
 from bot.middlewares.user import UserMiddleware
 
 DEFAULT_COMMANDS = [
@@ -16,7 +24,7 @@ DEFAULT_COMMANDS = [
 ]
 ADMIN_COMMANDS = DEFAULT_COMMANDS + [
     BotCommand(command="admin", description="Админ-панель / Admin panel"),
-    BotCommand(command="branches", description="Филиалы / Filiallar"),
+    BotCommand(command="service", description="Сервис / Xizmat"),
     BotCommand(command="stats", description="Статистика / Statistika"),
     BotCommand(command="users", description="Пользователи / Foydalanuvchilar"),
     BotCommand(command="export", description="Excel"),
@@ -51,7 +59,9 @@ async def main() -> None:
     dp.include_router(booking.router)
     dp.include_router(mybookings.router)
     dp.include_router(admin.router)
-    dp.include_router(admin_branches.router)
+    dp.include_router(admin_service.router)
+    dp.include_router(admin_bookings.router)
+    dp.include_router(admin_dayoffs.router)
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)

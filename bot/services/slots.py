@@ -1,11 +1,11 @@
 import math
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.db.models import Booking, BookingStatus, Branch
+from bot.db.models import Booking, BookingStatus, Branch, DayOff
 
 PEOPLE_PER_HOUR = 6
 
@@ -19,20 +19,76 @@ def hours_needed(people: int) -> int:
     return max(1, math.ceil(people / PEOPLE_PER_HOUR))
 
 
-async def list_active_branches(session: AsyncSession) -> list[Branch]:
-    result = await session.execute(
-        select(Branch).where(Branch.is_active.is_(True)).order_by(Branch.name)
-    )
-    return list(result.scalars().all())
+# --- Single service (stored as the sole row of the branches table) ----------
+
+async def get_service(session: AsyncSession) -> Branch | None:
+    return (
+        await session.execute(select(Branch).order_by(Branch.id).limit(1))
+    ).scalar_one_or_none()
+
+
+async def upsert_service(
+    session: AsyncSession, *, name, address, open_hour, open_minute,
+    close_hour, close_minute, latitude, longitude, location_url,
+) -> Branch:
+    """Create the service if none exists, otherwise update it in place."""
+    service = await get_service(session)
+    if service is None:
+        service = Branch(is_active=True)
+        session.add(service)
+    service.name = name
+    service.address = address
+    service.open_hour = open_hour
+    service.open_minute = open_minute
+    service.close_hour = close_hour
+    service.close_minute = close_minute
+    service.latitude = latitude
+    service.longitude = longitude
+    service.location_url = location_url
+    await session.commit()
+    await session.refresh(service)
+    return service
 
 
 async def get_branch(session: AsyncSession, branch_id: int) -> Branch | None:
     return await session.get(Branch, branch_id)
 
 
+# --- Day-offs ---------------------------------------------------------------
+
+async def day_offs_in(session: AsyncSession, days: list[date]) -> set[date]:
+    if not days:
+        return set()
+    result = await session.execute(
+        select(DayOff.date).where(DayOff.date.in_(days))
+    )
+    return set(result.scalars().all())
+
+
+async def toggle_day_off(session: AsyncSession, day: date) -> bool:
+    """Flip a date's day-off state. Returns True if it is now a day-off."""
+    existing = await session.get(DayOff, day)
+    if existing is None:
+        session.add(DayOff(date=day))
+        await session.commit()
+        return True
+    await session.delete(existing)
+    await session.commit()
+    return False
+
+
+async def bookable_days(session: AsyncSession, today: date, count: int = 7) -> list[date]:
+    """Upcoming days a customer may book: the next ``count`` days minus day-offs."""
+    days = next_days(today, count)
+    offs = await day_offs_in(session, days)
+    return [d for d in days if d not in offs]
+
+
+# --- Availability -----------------------------------------------------------
+
 async def _booked_hours(session: AsyncSession, branch_id: int, day: date) -> set[int]:
-    """Every clock hour occupied by a confirmed booking on that branch/day,
-    expanding each booking across its full [start, start + num_hours) span."""
+    """Every clock hour occupied by a confirmed booking on that day, expanding
+    each booking across its full [start, start + num_hours) span."""
     result = await session.execute(
         select(Booking.start_hour, Booking.num_hours).where(
             Booking.branch_id == branch_id,
@@ -53,10 +109,13 @@ def first_slot_hour(branch: Branch) -> int:
 
 
 async def free_hours(
-    session: AsyncSession, branch: Branch, day: date, now: datetime
+    session: AsyncSession, branch: Branch, day: date, now: datetime,
+    day_off: bool = False,
 ) -> list[int]:
-    """Start hours that are individually free. The group's full span is
-    validated later (once the people count is known) via ``create_booking``."""
+    """Start hours that are individually free. Empty on a day-off. The group's
+    full span is validated later (once people count is known) in create_booking."""
+    if day_off:
+        return []
     booked = await _booked_hours(session, branch.id, day)
     hours = []
     for hour in range(first_slot_hour(branch), branch.close_hour):
@@ -70,7 +129,7 @@ async def free_hours(
 
 def span_fits(branch: Branch, start_hour: int, num_hours: int) -> bool:
     """True if a booking of ``num_hours`` starting at ``start_hour`` ends by
-    the branch's closing hour."""
+    the service's closing hour."""
     return start_hour + num_hours <= branch.close_hour
 
 
@@ -149,18 +208,3 @@ async def upcoming_bookings(
         if b.date > now.date() or (b.date == now.date() and b.start_hour >= now.hour):
             out.append(b)
     return out
-
-
-async def delete_branch(session: AsyncSession, branch_id: int) -> bool:
-    """Delete a branch but keep its bookings as history: their branch_id is
-    nulled while the denormalized branch_name (and all other fields) survive.
-    Returns False if the branch does not exist."""
-    branch = await session.get(Branch, branch_id)
-    if branch is None:
-        return False
-    await session.execute(
-        update(Booking).where(Booking.branch_id == branch_id).values(branch_id=None)
-    )
-    await session.delete(branch)
-    await session.commit()
-    return True

@@ -18,7 +18,6 @@ class UserStat:
     people: int
     first_seen: date | None
     last_booking: date | None
-    favorite_branch: str | None
 
 
 @dataclass
@@ -28,7 +27,6 @@ class BookingRow:
     num_hours: int
     people_count: int
     status: str
-    branch_name: str
     user_name: str
     user_phone: str
     created_at: datetime | None
@@ -45,32 +43,23 @@ async def overview(session: AsyncSession, today: date) -> dict:
             select(func.count()).select_from(Booking).where(confirmed, Booking.date == today)
         )
     ).scalar_one()
-    by_branch_rows = (
+    people = (
         await session.execute(
-            select(Booking.branch_name, func.count(Booking.id))
-            .where(confirmed)
-            .group_by(Booking.branch_name)
-            .order_by(Booking.branch_name)
+            select(func.coalesce(func.sum(Booking.people_count), 0)).where(confirmed)
         )
-    ).all()
+    ).scalar_one()
+    hours = (
+        await session.execute(
+            select(func.coalesce(func.sum(Booking.num_hours), 0)).where(confirmed)
+        )
+    ).scalar_one()
     return {
         "users": users,
         "bookings": bookings,
         "today": today_count,
-        "by_branch": [(name, count) for name, count in by_branch_rows],
+        "people": int(people),
+        "hours": int(hours),
     }
-
-
-async def _favorite_branch(session: AsyncSession, user_id: int) -> str | None:
-    row = (
-        await session.execute(
-            select(Booking.branch_name, func.count(Booking.id).label("c"))
-            .where(Booking.user_id == user_id, Booking.status == BookingStatus.CONFIRMED)
-            .group_by(Booking.branch_name)
-            .order_by(func.count(Booking.id).desc(), Booking.branch_name)
-        )
-    ).first()
-    return row[0] if row else None
 
 
 async def _user_stat(session: AsyncSession, user: User) -> UserStat:
@@ -85,7 +74,6 @@ async def _user_stat(session: AsyncSession, user: User) -> UserStat:
         )
     ).first()
     count, people, last = agg[0], int(agg[1]), agg[2]
-    fav = await _favorite_branch(session, user.telegram_id)
     return UserStat(
         name=user.full_name,
         phone=user.phone,
@@ -94,7 +82,6 @@ async def _user_stat(session: AsyncSession, user: User) -> UserStat:
         people=people,
         first_seen=user.created_at.date() if user.created_at else None,
         last_booking=last,
-        favorite_branch=fav,
     )
 
 
@@ -122,25 +109,48 @@ async def all_user_stats(session: AsyncSession) -> list[UserStat]:
     return [await _user_stat(session, u) for u in users]
 
 
+def _to_row(b: Booking) -> BookingRow:
+    return BookingRow(
+        date=b.date,
+        start_hour=b.start_hour,
+        num_hours=b.num_hours,
+        people_count=b.people_count,
+        status=b.status,
+        user_name=b.user.full_name if b.user else "—",
+        user_phone=b.user.phone if b.user else "—",
+        created_at=b.created_at,
+    )
+
+
 async def all_bookings(session: AsyncSession) -> list[BookingRow]:
     result = await session.execute(
         select(Booking)
         .options(selectinload(Booking.user))
         .order_by(Booking.date, Booking.start_hour)
     )
-    rows: list[BookingRow] = []
-    for b in result.scalars().all():
-        rows.append(
-            BookingRow(
-                date=b.date,
-                start_hour=b.start_hour,
-                num_hours=b.num_hours,
-                people_count=b.people_count,
-                status=b.status,
-                branch_name=b.branch_name or "—",
-                user_name=b.user.full_name if b.user else "—",
-                user_phone=b.user.phone if b.user else "—",
-                created_at=b.created_at,
-            )
+    return [_to_row(b) for b in result.scalars().all()]
+
+
+async def bookings_on_day(session: AsyncSession, day: date) -> list[BookingRow]:
+    """Confirmed bookings for a given day, with customer info, for the admin view."""
+    result = await session.execute(
+        select(Booking)
+        .options(selectinload(Booking.user))
+        .where(Booking.date == day, Booking.status == BookingStatus.CONFIRMED)
+        .order_by(Booking.start_hour)
+    )
+    return [_to_row(b) for b in result.scalars().all()]
+
+
+async def booking_counts(session: AsyncSession, days: list[date]) -> dict[date, int]:
+    """Confirmed booking count per day, for labelling the admin day picker."""
+    if not days:
+        return {}
+    rows = (
+        await session.execute(
+            select(Booking.date, func.count(Booking.id))
+            .where(Booking.date.in_(days), Booking.status == BookingStatus.CONFIRMED)
+            .group_by(Booking.date)
         )
-    return rows
+    ).all()
+    return {d: c for d, c in rows}

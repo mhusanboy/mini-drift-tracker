@@ -1,7 +1,19 @@
 # Mini Carting Booking Bot — Design
 
 **Date:** 2026-07-13
-**Status:** Approved (pending written-spec review)
+**Status:** Approved
+
+> **Update 2026-07-15 — pivot to a single service (no branches).** The bot now
+> serves ONE service instead of multiple branches. The branch selection, branch
+> list, add/delete/activate-deactivate, and per-branch stats were removed.
+> Instead: the admin configures one **Service** (name, address, hours, location)
+> in-bot; on entry the customer sees the service location + Book/My bookings/
+> Language; Book goes straight to day → time → people → confirm. Two admin tools
+> were added — **📅 Show bookings** (pick a day → that day's booked times with
+> customer info) and **🛌 Day-offs** (toggle any of the next 7 days closed;
+> hidden from customers, ad-hoc not weekly). The single service is still stored
+> as one row of the `branches` table; day-offs live in a new `day_offs` table.
+> Sections below describe the earlier multi-branch design for history.
 
 A Telegram bot for a mini go-kart (carting) service in Tashkent. Customers
 register, browse branches, and book an hourly slot. Admins get notified of new

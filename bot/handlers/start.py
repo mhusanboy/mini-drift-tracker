@@ -7,21 +7,39 @@ from bot.config import get_settings
 from bot.db.models import User
 from bot.keyboards.common import language_kb, main_menu_kb, phone_kb
 from bot.locales import t
+from bot.services import slots
 from bot.states import Registration
 
 router = Router()
 
 
-async def show_main_menu_message(message: Message, lang: str) -> None:
-    is_admin = get_settings().is_admin(message.from_user.id)
+async def send_service_location(message: Message, service, lang: str) -> None:
+    """Show where the service is: a Telegram venue pin if we have coordinates,
+    otherwise the saved map link."""
+    if service.latitude is not None and service.longitude is not None:
+        await message.answer_venue(
+            latitude=service.latitude, longitude=service.longitude,
+            title=service.name, address=service.address,
+        )
+    elif service.location_url:
+        await message.answer(t("service_location_link", lang, name=service.name,
+                              address=service.address, url=service.location_url))
+
+
+async def show_main_menu(message: Message, user_id: int, lang: str, session_factory) -> None:
+    async with session_factory() as session:
+        service = await slots.get_service(session)
+    if service is not None:
+        await send_service_location(message, service, lang)
+    is_admin = get_settings().is_admin(user_id)
     await message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang, is_admin))
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext, user: User | None):
+async def cmd_start(message: Message, state: FSMContext, user: User | None, session_factory):
     await state.clear()
     if user is not None:
-        await show_main_menu_message(message, user.language)
+        await show_main_menu(message, message.from_user.id, user.language, session_factory)
         return
     await message.answer(t("choose_language", "ru"), reply_markup=language_kb())
 
@@ -36,8 +54,7 @@ async def pick_language(cb: CallbackQuery, state: FSMContext, user: User | None,
             db_user = await session.get(User, user.telegram_id)
             db_user.language = lang
             await session.commit()
-        is_admin = get_settings().is_admin(cb.from_user.id)
-        await cb.message.answer(t("main_menu_title", lang), reply_markup=main_menu_kb(lang, is_admin))
+        await show_main_menu(cb.message, cb.from_user.id, lang, session_factory)
         await cb.answer()
         return
     await state.update_data(language=lang)
@@ -70,7 +87,7 @@ async def reg_phone(message: Message, state: FSMContext, session_factory):
     await state.clear()
     await message.answer(t("registered", lang, name=data["full_name"]),
                          reply_markup=ReplyKeyboardRemove())
-    await show_main_menu_message(message, lang)
+    await show_main_menu(message, message.from_user.id, lang, session_factory)
 
 
 @router.message(Registration.phone)

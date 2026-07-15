@@ -1,3 +1,5 @@
+from datetime import date
+
 from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -33,3 +35,11 @@ def phone_kb(lang: str) -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         one_time_keyboard=True,
     )
+
+
+def day_label(d: date, today: date, lang: str) -> str:
+    if d == today:
+        return t("today", lang)
+    if (d - today).days == 1:
+        return t("tomorrow", lang)
+    return d.strftime("%d.%m")

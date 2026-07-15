@@ -15,5 +15,5 @@ def test_main_menu_shows_admin_button_only_for_admins():
 
 def test_admin_panel_kb_actions():
     assert _callbacks(admin_panel_kb("ru")) == [
-        "adm:branches", "adm:stats", "adm:users", "adm:export",
+        "adm:service", "adm:bookings", "adm:dayoffs", "adm:stats", "adm:users", "adm:export",
     ]

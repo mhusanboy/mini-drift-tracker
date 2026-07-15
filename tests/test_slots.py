@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+from sqlalchemy import select
+
 from bot.db.models import Booking, Branch, BookingStatus, User
 from bot.services import slots
 
@@ -23,15 +25,54 @@ async def _seed(session_factory):
     async with session_factory() as s:
         s.add(User(telegram_id=1, full_name="A", phone="+1"))
         s.add(Branch(id=1, name="Main", address="X", open_hour=10, close_hour=14, is_active=True))
-        s.add(Branch(id=2, name="Old", address="Y", open_hour=9, close_hour=12, is_active=False))
         await s.commit()
 
 
-async def test_list_active_branches(session_factory):
+async def test_get_service_returns_the_single_row(session_factory):
     await _seed(session_factory)
     async with session_factory() as s:
-        branches = await slots.list_active_branches(s)
-        assert [b.id for b in branches] == [1]
+        service = await slots.get_service(s)
+        assert service is not None and service.name == "Main"
+
+
+async def test_get_service_none_when_empty(session_factory):
+    async with session_factory() as s:
+        assert await slots.get_service(s) is None
+
+
+async def test_upsert_service_creates_then_updates(session_factory):
+    async with session_factory() as s:
+        created = await slots.upsert_service(
+            s, name="Kart", address="A", open_hour=10, open_minute=0,
+            close_hour=22, close_minute=0, latitude=None, longitude=None, location_url=None)
+        assert created.name == "Kart"
+    async with session_factory() as s:
+        updated = await slots.upsert_service(
+            s, name="Kart2", address="B", open_hour=9, open_minute=30,
+            close_hour=23, close_minute=0, latitude=41.0, longitude=69.0, location_url=None)
+        # Still a single service row, now updated.
+        assert updated.name == "Kart2"
+        all_rows = (await s.execute(select(Branch))).scalars().all()
+        assert len(all_rows) == 1
+
+
+async def test_day_off_toggle_and_bookable_days(session_factory):
+    await _seed(session_factory)
+    d1 = date(2026, 7, 20)
+    async with session_factory() as s:
+        assert await slots.toggle_day_off(s, d1) is True   # now off
+        assert await slots.day_offs_in(s, [d1]) == {d1}
+        days = await slots.bookable_days(s, date(2026, 7, 20), count=3)  # 20,21,22 minus 20
+        assert days == [date(2026, 7, 21), date(2026, 7, 22)]
+        assert await slots.toggle_day_off(s, d1) is False  # back to working
+        assert await slots.day_offs_in(s, [d1]) == set()
+
+
+async def test_free_hours_empty_on_day_off(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        b = await slots.get_branch(s, 1)
+        assert await slots.free_hours(s, b, date(2026, 7, 20), datetime(2026, 7, 13, 8, 0), day_off=True) == []
 
 
 async def test_free_hours_full_range_future_day(session_factory):
@@ -143,29 +184,6 @@ async def test_cancel_wrong_user_returns_none(session_factory):
     async with session_factory() as s:
         b = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 2)
         assert await slots.cancel_booking(s, b.id, user_id=999) is None
-
-
-async def test_delete_branch_keeps_bookings_as_history(session_factory):
-    await _seed(session_factory)
-    async with session_factory() as s:
-        booking = await slots.create_booking(s, 1, 1, date(2026, 7, 20), 10, 2)
-        assert booking.branch_name == "Main"
-        assert await slots.delete_branch(s, 1) is True
-    async with session_factory() as s:
-        # Branch row is gone...
-        assert await slots.get_branch(s, 1) is None
-        assert [b.id for b in await slots.list_active_branches(s)] == []
-        # ...but the booking survives with its branch name and a nulled branch_id.
-        kept = await s.get(Booking, booking.id)
-        assert kept is not None
-        assert kept.branch_id is None
-        assert kept.branch_name == "Main"
-
-
-async def test_delete_missing_branch_returns_false(session_factory):
-    await _seed(session_factory)
-    async with session_factory() as s:
-        assert await slots.delete_branch(s, 999) is False
 
 
 async def test_upcoming_bookings_sorted_and_confirmed_only(session_factory):

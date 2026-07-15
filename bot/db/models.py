@@ -54,6 +54,15 @@ class Branch(Base):
     bookings: Mapped[list["Booking"]] = relationship(back_populates="branch")
 
 
+class DayOff(Base):
+    """A single calendar date on which the service is closed (no bookings).
+    Presence of a row = that date is a day-off; toggling adds/removes it."""
+
+    __tablename__ = "day_offs"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
 class Booking(Base):
     __tablename__ = "bookings"
 

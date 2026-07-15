@@ -7,14 +7,13 @@ class Registration(StatesGroup):
 
 
 class Booking(StatesGroup):
-    branch = State()
     day = State()
     time = State()
     people = State()
     confirm = State()
 
 
-class AddBranch(StatesGroup):
+class EditService(StatesGroup):
     name = State()
     address = State()
     open_hour = State()

@@ -42,12 +42,9 @@ async def panel(cb: CallbackQuery, lang: str):
 async def _send_stats(target, session_factory, lang: str) -> None:
     async with session_factory() as session:
         ov = await stats.overview(session, date.today())
-    by_branch = "\n".join(
-        t("stats_branch_line", lang, name=n, count=c) for n, c in ov["by_branch"]
-    ) or "—"
     await target.answer(t(
         "stats_overview", lang, users=ov["users"], bookings=ov["bookings"],
-        today=ov["today"], by_branch=by_branch,
+        today=ov["today"], people=ov["people"], hours=ov["hours"],
     ))
 
 
@@ -83,8 +80,7 @@ async def _render_users(target, page: int, session_factory, lang: str):
     header = t("users_header", lang, page=page, pages=pages)
     cards = "\n\n".join(
         t("user_card", lang, name=r.name, phone=r.phone, bookings=r.bookings,
-          people=r.people, first=r.first_seen, last=r.last_booking or "—",
-          fav=r.favorite_branch or "—")
+          people=r.people, first=r.first_seen, last=r.last_booking or "—")
         for r in rows
     ) or "—"
     await target.answer(header + "\n\n" + cards, reply_markup=_users_page_kb(page, pages))

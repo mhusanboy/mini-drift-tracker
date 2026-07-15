@@ -27,7 +27,8 @@ async def test_overview(session_factory):
         assert ov["users"] == 2
         assert ov["bookings"] == 4
         assert ov["today"] == 2
-        assert dict(ov["by_branch"]) == {"Main": 2, "North": 2}
+        assert ov["people"] == 10  # 3 + 2 + 1 + 4
+        assert ov["hours"] == 4     # each of the 4 bookings spans 1 hour
 
 
 async def test_user_stats(session_factory):
@@ -39,5 +40,18 @@ async def test_user_stats(session_factory):
         assert anvar.bookings == 3
         assert anvar.people == 6
         assert anvar.last_booking == date(2026, 7, 21)
-        # Anvar has 2 bookings at Main, 1 at North -> favorite Main
-        assert anvar.favorite_branch == "Main"
+        assert anvar.language == "ru"
+
+
+async def test_bookings_on_day(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        rows = await stats.bookings_on_day(s, date(2026, 7, 13))
+        assert [(r.start_hour, r.user_name) for r in rows] == [(10, "Anvar"), (15, "Bek")]
+
+
+async def test_booking_counts(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        counts = await stats.booking_counts(s, [date(2026, 7, 13), date(2026, 7, 20)])
+        assert counts == {date(2026, 7, 13): 2, date(2026, 7, 20): 1}

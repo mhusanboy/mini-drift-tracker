@@ -20,7 +20,7 @@ async def _render_bookings(target, user_id: int, lang: str, session_factory) -> 
         await target.answer(t("my_bookings_empty", lang))
         return
     lines = [
-        t("booking_line", lang, branch=b.branch_name, date=b.date.isoformat(),
+        t("booking_line", lang, date=b.date.isoformat(),
           hour=b.start_hour, end=b.start_hour + b.num_hours, hours=b.num_hours,
           people=b.people_count)
         for b in bookings

@@ -1,7 +1,8 @@
 # Mini Carting Booking Bot
 
-Telegram bot for a Tashkent go-kart service: customers register and book hourly
-slots; admins get notified and view analytics + manage branches.
+Telegram bot for a Tashkent go-kart service (a **single service**, no branches):
+customers register and book hourly slots; admins get notified, configure the
+service, manage day-offs, and view bookings + analytics.
 
 ## Setup
 
@@ -28,34 +29,35 @@ python -m pytest -v
 
 ## Usage
 
-- **Users:** `/start` → pick language → name → share phone → main menu →
-  Book a slot (branch → day → time → people → confirm). `/mybookings` to view
-  or cancel.
+- **Users:** `/start` → pick language → name → share phone. The bot then shows
+  the **service location** (map pin or link) and a menu: **Book / My bookings /
+  Language**. Book → **day → time → number of people → confirm** (no branch
+  step). A slot spans `ceil(people / 6)` consecutive hours. `/mybookings` to
+  view or cancel.
 - **Admins** (Telegram IDs listed in `ADMIN_IDS`): after `/start` the main menu
-  shows a **🔧 Admin panel** button (also reachable via `/admin`), with
-  **Branches / Stats / Users**. Admin commands also appear in Telegram's `/`
-  menu. Admins get a DM on each new booking/cancellation.
-  - **Add a location:** open the panel → **Branches** (or `/branches`) →
-    **➕ Add branch** → enter name → address → opening time → closing time →
-    **send the branch location** (a Telegram location/venue, or a Yandex/Google
-    Maps link; send `-` to skip). Opening/closing accept `11`, `11:00`, `11:30`.
-    Customers see the branch's location (a map pin or the link) when they pick it.
-  - **Booking times are automatic:** every hour between the branch's opening and
-    closing hour becomes a bookable slot (e.g. open 10, close 22 → 10:00…21:00).
-    A customer's slot spans `ceil(people / 6)` consecutive hours.
-  - `/stats` — totals + per-branch counts. `/users` — per-customer analytics.
-  - **📊 Excel export** (panel button or `/export`) — sends an `.xlsx` workbook
-    with three sheets: **Overview** (totals + per-branch breakdown),
-    **Customers** (per-user analytics for promotions), and **Bookings** (every
-    booking, including cancellations). Sheet names and headers are in the
-    admin's language.
-  - Edit, activate/deactivate, or **delete** a branch from the same **Branches**
-    view. Delete asks for confirmation and keeps the branch's past bookings as
-    history (they still appear in stats and the Excel export).
+  shows a **🔧 Admin panel** button (also `/admin`). All admin output is in the
+  admin's own language. Admins get a DM on each new booking/cancellation.
+  - **🔧 Service** (`/service`) — set/update the service: name → address →
+    opening time → closing time → **location** (Telegram location/venue, or a
+    Yandex/Google Maps link; `-` to skip). Times accept `11`, `11:00`, `11:30`;
+    a half-hour opening pushes the first slot to the next full hour. Bookable
+    hours are every hour between opening and closing.
+  - **📅 Show bookings** — pick a day (next 7) to see that day's booked times
+    with each customer's name and phone.
+  - **🛌 Day-offs** — the next 7 days with a 🟢/🚫 toggle each; a 🚫 day is
+    hidden from customers' day picker. Day-offs are ad-hoc (not a fixed weekly
+    pattern) and don't affect already-made bookings.
+  - **📊 Stats** — totals: users, bookings, today, total people, total hours.
+    **👥 Users** — per-customer analytics for promotions.
+  - **📊 Excel export** (panel button or `/export`) — an `.xlsx` with three
+    sheets: **Overview**, **Customers**, **Bookings**. Localized to the admin.
 
 ## Architecture
 
-- `bot/handlers/` — thin aiogram routers (registration, booking, my-bookings, admin).
-- `bot/services/` — tested business logic (slots, stats, notifications).
-- `bot/db/` — SQLAlchemy async models + engine; slots are computed, not stored.
+- `bot/handlers/` — thin aiogram routers (registration, booking, my-bookings,
+  admin panel, service settings, bookings view, day-offs).
+- `bot/services/` — tested business logic (slots + service + day-offs, stats,
+  export, notifications).
+- `bot/db/` — SQLAlchemy async models + engine. The single service is one row of
+  the `branches` table; day-offs are rows in `day_offs`; slots are computed.
 - `bot/locales.py` — ru/uz strings. `bot/keyboards/`, `bot/states.py`, `bot/middlewares/`.
