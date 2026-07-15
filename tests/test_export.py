@@ -17,14 +17,14 @@ def _sample():
                  first_seen=date(2026, 7, 2), last_booking=date(2026, 7, 13)),
     ]
     bookings = [
-        BookingRow(date=date(2026, 7, 20), start_hour=10, num_hours=2, people_count=9,
-                   status=BookingStatus.CONFIRMED, user_name="Anvar",
+        BookingRow(id=1, date=date(2026, 7, 20), start_minute=600, num_hours=2, people_count=9,
+                   status=BookingStatus.CONFIRMED, attended=True, user_name="Anvar",
                    user_phone="+1", created_at=datetime(2026, 7, 13, 9, 0)),
-        BookingRow(date=date(2026, 7, 13), start_hour=15, num_hours=1, people_count=4,
-                   status=BookingStatus.CONFIRMED, user_name="Bek",
+        BookingRow(id=2, date=date(2026, 7, 13), start_minute=900, num_hours=1, people_count=4,
+                   status=BookingStatus.CONFIRMED, attended=None, user_name="Bek",
                    user_phone="+2", created_at=datetime(2026, 7, 12, 8, 0)),
-        BookingRow(date=date(2026, 7, 21), start_hour=12, num_hours=1, people_count=2,
-                   status=BookingStatus.CANCELLED, user_name="Anvar",
+        BookingRow(id=3, date=date(2026, 7, 21), start_minute=720, num_hours=1, people_count=2,
+                   status=BookingStatus.CANCELLED, attended=False, user_name="Anvar",
                    user_phone="+1", created_at=datetime(2026, 7, 13, 10, 0)),
     ]
     return overview, users, bookings
@@ -62,7 +62,8 @@ def test_bookings_sheet_lists_all_statuses():
     # Columns: date, start, end, hours, people, customer, phone, status(8), created(9).
     statuses = {ws.cell(row=r, column=8).value for r in (2, 3, 4)}
     assert statuses == {"confirmed", "cancelled"}
-    # 10:00 + 2h -> end 12:00 on the first (sorted) booking.
+    # 10:00 (600 min) + 2h -> end 12:00 on the first (sorted) booking.
+    assert ws.cell(row=2, column=2).value == "10:00"
     assert ws.cell(row=2, column=3).value == "12:00"
 
 

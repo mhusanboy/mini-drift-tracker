@@ -35,9 +35,9 @@ async def test_confirmed_slot_is_unique(session_factory):
         s.add(User(telegram_id=1, full_name="A", phone="+1"))
         s.add(Branch(id=1, name="Main", address="X", open_hour=10, close_hour=22))
         await s.commit()
-        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_hour=10, people_count=2))
+        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_minute=600, people_count=2))
         await s.commit()
-        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_hour=10, people_count=3))
+        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_minute=600, people_count=3))
         with pytest.raises(IntegrityError):
             await s.commit()
 
@@ -47,10 +47,10 @@ async def test_cancelled_does_not_block_rebooking(session_factory):
         s.add(User(telegram_id=1, full_name="A", phone="+1"))
         s.add(Branch(id=1, name="Main", address="X", open_hour=10, close_hour=22))
         await s.commit()
-        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_hour=10,
+        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_minute=600,
                       people_count=2, status=BookingStatus.CANCELLED))
         await s.commit()
         # A confirmed booking on the same slot must succeed.
-        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_hour=10, people_count=2))
+        s.add(Booking(user_id=1, branch_id=1, date=date(2026, 7, 20), start_minute=600, people_count=2))
         await s.commit()
         assert True

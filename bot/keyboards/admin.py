@@ -5,6 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.keyboards.common import day_label, with_back
 from bot.locales import t
+from bot.timeutil import fmt_minutes
 
 
 def admin_panel_kb(lang: str) -> InlineKeyboardMarkup:
@@ -44,3 +45,16 @@ def dayoffs_kb(days: list[date], offs: set, today: date, lang: str) -> InlineKey
         b.button(text=f"{mark} {day_label(d, today, lang)}", callback_data=f"adm:dayoff:{d.isoformat()}")
     b.adjust(2)
     return with_back(b.as_markup(), "back:panel", lang)
+
+
+def day_bookings_kb(bookings, lang: str) -> InlineKeyboardMarkup:
+    """Per booking: a 'Came' / 'No-show' toggle pair (current mark highlighted)."""
+    b = InlineKeyboardBuilder()
+    for bk in bookings:
+        tm = fmt_minutes(bk.start_minute)
+        came = ("✅ " if bk.attended is True else "") + t("btn_att_came", lang, time=tm)
+        no = ("❌ " if bk.attended is False else "") + t("btn_att_no", lang, time=tm)
+        b.button(text=came, callback_data=f"att:came:{bk.id}")
+        b.button(text=no, callback_data=f"att:no:{bk.id}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:bdays", lang)

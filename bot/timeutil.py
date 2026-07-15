@@ -31,3 +31,8 @@ def parse_time(text: str) -> int | None:
 
 def format_time(hour: int, minute: int = 0) -> str:
     return f"{hour:02d}:{minute:02d}"
+
+
+def fmt_minutes(minutes: int) -> str:
+    """Format minutes-since-midnight as HH:MM (e.g. 690 -> '11:30')."""
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"

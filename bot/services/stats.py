@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time as dt_time, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,14 +22,20 @@ class UserStat:
 
 @dataclass
 class BookingRow:
+    id: int
     date: date
-    start_hour: int
+    start_minute: int
     num_hours: int
     people_count: int
     status: str
+    attended: bool | None
     user_name: str
     user_phone: str
     created_at: datetime | None
+
+
+def _end_dt(day: date, start_minute: int, num_hours: int) -> datetime:
+    return datetime.combine(day, dt_time()) + timedelta(minutes=start_minute + num_hours * 60)
 
 
 async def overview(session: AsyncSession, today: date) -> dict:
@@ -111,11 +117,13 @@ async def all_user_stats(session: AsyncSession) -> list[UserStat]:
 
 def _to_row(b: Booking) -> BookingRow:
     return BookingRow(
+        id=b.id,
         date=b.date,
-        start_hour=b.start_hour,
+        start_minute=b.start_minute,
         num_hours=b.num_hours,
         people_count=b.people_count,
         status=b.status,
+        attended=b.attended,
         user_name=b.user.full_name if b.user else "—",
         user_phone=b.user.phone if b.user else "—",
         created_at=b.created_at,
@@ -126,31 +134,25 @@ async def all_bookings(session: AsyncSession) -> list[BookingRow]:
     result = await session.execute(
         select(Booking)
         .options(selectinload(Booking.user))
-        .order_by(Booking.date, Booking.start_hour)
+        .order_by(Booking.date, Booking.start_minute)
     )
     return [_to_row(b) for b in result.scalars().all()]
 
 
-async def bookings_on_day(session: AsyncSession, day: date) -> list[BookingRow]:
-    """Confirmed bookings for a given day, with customer info, for the admin view."""
+async def bookings_on_day(session: AsyncSession, day: date, now: datetime) -> list[BookingRow]:
+    """Confirmed, not-yet-finished bookings for a day (finished ones disappear)."""
     result = await session.execute(
         select(Booking)
         .options(selectinload(Booking.user))
         .where(Booking.date == day, Booking.status == BookingStatus.CONFIRMED)
-        .order_by(Booking.start_hour)
+        .order_by(Booking.start_minute)
     )
-    return [_to_row(b) for b in result.scalars().all()]
+    return [
+        _to_row(b) for b in result.scalars().all()
+        if _end_dt(b.date, b.start_minute, b.num_hours) > now
+    ]
 
 
-async def booking_counts(session: AsyncSession, days: list[date]) -> dict[date, int]:
-    """Confirmed booking count per day, for labelling the admin day picker."""
-    if not days:
-        return {}
-    rows = (
-        await session.execute(
-            select(Booking.date, func.count(Booking.id))
-            .where(Booking.date.in_(days), Booking.status == BookingStatus.CONFIRMED)
-            .group_by(Booking.date)
-        )
-    ).all()
-    return {d: c for d, c in rows}
+async def booking_counts(session: AsyncSession, days: list[date], now: datetime) -> dict[date, int]:
+    """Count of not-yet-finished confirmed bookings per day (for the day picker)."""
+    return {d: len(await bookings_on_day(session, d, now)) for d in days}

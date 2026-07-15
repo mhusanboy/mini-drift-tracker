@@ -73,10 +73,17 @@ class Booking(Base):
     # Denormalized branch name kept even after the branch row is deleted.
     branch_name: Mapped[str] = mapped_column(String, nullable=False, default="")
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Minutes since midnight, in 30-minute steps (e.g. 690 == 11:30).
+    start_minute: Mapped[int] = mapped_column(Integer, nullable=False)
     num_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     people_count: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.CONFIRMED)
+    # ~1h-before "are you coming?" reminder was sent.
+    reminded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # None = not marked yet, True = came, False = no-show.
+    attended: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="bookings")
@@ -87,7 +94,7 @@ class Booking(Base):
             "uq_booking_confirmed_slot",
             "branch_id",
             "date",
-            "start_hour",
+            "start_minute",
             unique=True,
             sqlite_where=text("status = 'confirmed'"),
         ),

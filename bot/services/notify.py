@@ -4,6 +4,7 @@ from aiogram import Bot
 
 from bot.db.models import User
 from bot.locales import t
+from bot.timeutil import fmt_minutes
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +19,24 @@ async def _safe_send(bot: Bot, chat_id: int, text: str) -> None:
 
 
 async def _admin_lang(session_factory, admin_id: int) -> str:
-    """The admin's chosen language, or Russian if they haven't registered."""
     async with session_factory() as session:
         admin = await session.get(User, admin_id)
     return admin.language if admin else DEFAULT_ADMIN_LANG
 
 
+def _times(booking):
+    start = fmt_minutes(booking.start_minute)
+    end = fmt_minutes(booking.start_minute + booking.num_hours * 60)
+    return start, end
+
+
 async def notify_new_booking(bot: Bot, session_factory, admin_ids, booking, user) -> None:
+    start, end = _times(booking)
     for admin_id in admin_ids:
         lang = await _admin_lang(session_factory, admin_id)
         text = t(
             "admin_new_booking", lang,
-            branch=booking.branch_name, date=booking.date.isoformat(),
-            hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
+            date=booking.date.isoformat(), time=start, end=end,
             hours=booking.num_hours, people=booking.people_count,
             name=user.full_name, phone=user.phone,
         )
@@ -38,12 +44,12 @@ async def notify_new_booking(bot: Bot, session_factory, admin_ids, booking, user
 
 
 async def notify_cancellation(bot: Bot, session_factory, admin_ids, booking, user) -> None:
+    start, end = _times(booking)
     for admin_id in admin_ids:
         lang = await _admin_lang(session_factory, admin_id)
         text = t(
             "admin_cancelled", lang,
-            branch=booking.branch_name, date=booking.date.isoformat(),
-            hour=booking.start_hour, end=booking.start_hour + booking.num_hours,
+            date=booking.date.isoformat(), time=start, end=end,
             name=user.full_name, phone=user.phone,
         )
         await _safe_send(bot, admin_id, text)

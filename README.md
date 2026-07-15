@@ -31,26 +31,29 @@ python -m pytest -v
 
 - **Users:** `/start` → pick language → name → share phone. The bot then shows
   the **service location** (map pin or link) and a menu: **Book / My bookings /
-  Language**. Book → **day → time → number of people → confirm** (no branch
-  step). A slot spans `ceil(people / 6)` consecutive hours. `/mybookings` to
-  view or cancel.
-- **Admins** (Telegram IDs listed in `ADMIN_IDS`): after `/start` the main menu
-  shows a **🔧 Admin panel** button (also `/admin`). All admin output is in the
-  admin's own language. Admins get a DM on each new booking/cancellation.
+  Language**. Book → **day (today or tomorrow) → time → number of people →
+  confirm**. Start times are on **:00 and :30** (picker shows :00 in the left
+  column, :30 in the right). Customers see only their start time; a booking
+  quietly reserves `ceil(people / 6)` hours behind the scenes. `/mybookings` to
+  view or cancel. A booking disappears from *My bookings* once it has finished.
+  - ~**1 hour before** a booking the bot asks "are you coming?" — **Yes** keeps
+    it; **No** cancels it and frees the slot (admin is notified).
+  - After a booking the admin marked as **attended**, the bot asks the customer
+    to **rate 1–5 ⭐**.
+- **Admins** (Telegram IDs in `ADMIN_IDS`): main menu shows **🔧 Admin panel**
+  (also `/admin`), localized to the admin. DM on each new booking/cancellation.
   - **⚙️ Settings** (`/service`) — set/update the service: name → address →
-    opening time → closing time → **location** (Telegram location/venue, or a
-    Yandex/Google Maps link; `-` to skip). Times accept `11`, `11:00`, `11:30`;
-    a half-hour opening pushes the first slot to the next full hour. Bookable
-    hours are every hour between opening and closing.
-  - **📅 Show bookings** — pick a day (next 7) to see that day's booked times
-    with each customer's name and phone.
-  - **🛌 Day-offs** — the next 7 days with a 🟢/🚫 toggle each; a 🚫 day is
-    hidden from customers' day picker. Day-offs are ad-hoc (not a fixed weekly
-    pattern) and don't affect already-made bookings.
-  - **📊 Stats** — totals: users, bookings, today, total people, total hours.
-    **👥 Users** — per-customer analytics for promotions.
-  - **📊 Excel export** (panel button or `/export`) — an `.xlsx` with three
-    sheets: **Overview**, **Customers**, **Bookings**. Localized to the admin.
+    opening → closing → **location** (Telegram location/venue, or a Yandex/Google
+    Maps link; `-` to skip). Times accept `11`, `11:00`, `11:30`.
+  - **📅 Show bookings** — pick **today or tomorrow** to see that day's booked
+    times (with the full `HH:MM–HH:MM` span) and each customer's name/phone, and
+    mark **✅ Came / ❌ No-show**. Finished bookings drop off automatically.
+  - **🛌 Day-offs** — today + tomorrow, each a 🟢/🚫 toggle; a 🚫 day is hidden
+    from customers. Ad-hoc; doesn't affect already-made bookings.
+  - **📊 Stats** / **👥 Users** / **📊 Excel export** (`/export`) — as before.
+
+A background scheduler (inside the bot process) sends the reminders and rating
+requests every minute.
 
 ## Architecture
 

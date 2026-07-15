@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 
 from bot.locales import t
 from bot.services.stats import BookingRow, UserStat
+from bot.timeutil import fmt_minutes
 
 _BOLD = Font(bold=True)
 
@@ -76,8 +77,8 @@ def _bookings_sheet(ws, bookings: list[BookingRow], lang: str) -> None:
     _write_header(ws, 1, headers)
     for i, b in enumerate(bookings, start=2):
         ws.cell(row=i, column=1, value=b.date.isoformat())
-        ws.cell(row=i, column=2, value=f"{b.start_hour:02d}:00")
-        ws.cell(row=i, column=3, value=f"{b.start_hour + b.num_hours:02d}:00")
+        ws.cell(row=i, column=2, value=fmt_minutes(b.start_minute))
+        ws.cell(row=i, column=3, value=fmt_minutes(b.start_minute + b.num_hours * 60))
         ws.cell(row=i, column=4, value=b.num_hours)
         ws.cell(row=i, column=5, value=b.people_count)
         ws.cell(row=i, column=6, value=b.user_name)

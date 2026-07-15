@@ -11,6 +11,7 @@ from bot.keyboards.booking import my_bookings_kb
 from bot.keyboards.common import back_kb
 from bot.locales import t
 from bot.services import notify, slots
+from bot.timeutil import fmt_minutes
 
 router = Router()
 
@@ -22,8 +23,7 @@ async def _bookings_view(user_id: int, lang: str, session_factory):
         return t("my_bookings_empty", lang), back_kb("back:main", lang)
     lines = [
         t("booking_line", lang, date=b.date.isoformat(),
-          hour=b.start_hour, end=b.start_hour + b.num_hours, hours=b.num_hours,
-          people=b.people_count)
+          time=fmt_minutes(b.start_minute), people=b.people_count)
         for b in bookings
     ]
     text = t("my_bookings_title", lang) + "\n\n" + "\n".join(lines)

@@ -14,9 +14,11 @@ from bot.handlers import (
     admin_service,
     booking,
     mybookings,
+    reminders,
     start,
 )
 from bot.middlewares.user import UserMiddleware
+from bot.services.scheduler import run_scheduler
 
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Boshlash / Начать"),
@@ -58,16 +60,19 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(booking.router)
     dp.include_router(mybookings.router)
+    dp.include_router(reminders.router)
     dp.include_router(admin.router)
     dp.include_router(admin_service.router)
     dp.include_router(admin_bookings.router)
     dp.include_router(admin_dayoffs.router)
 
+    scheduler_task = asyncio.create_task(run_scheduler(bot, session_factory))
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await setup_commands(bot, settings.admin_ids)
         await dp.start_polling(bot)
     finally:
+        scheduler_task.cancel()
         await bot.session.close()
         await engine.dispose()
 
