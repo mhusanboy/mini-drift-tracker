@@ -1,66 +1,67 @@
-from datetime import date, datetime
+from datetime import date
 
-from bot.db.models import Branch, User
-from bot.services import slots, stats
+from bot.db.models import Booking, BookingStatus, User
+from bot.services import stats
+
+TODAY = date(2026, 7, 20)
 
 
 async def _seed(session_factory):
     async with session_factory() as s:
-        s.add_all([
-            User(telegram_id=1, full_name="Anvar", phone="+1"),
-            User(telegram_id=2, full_name="Bek", phone="+2"),
-            Branch(id=1, name="Main", address="X", open_hour=10, close_hour=22),
-        ])
+        s.add(User(telegram_id=1, full_name="Anvar", phone="+1", language="uz"))
+        s.add(User(telegram_id=2, full_name="Bek", phone="+2", language="ru"))
+        # Anvar: one accepted today (4 people, 1h), one rejected, one pending.
+        s.add(Booking(user_id=1, full_name="Anvar", phone="+1", date=TODAY,
+                      start_minute=660, people_count=4, duration_hours=1,
+                      status=BookingStatus.ACCEPTED))
+        s.add(Booking(user_id=1, full_name="Anvar", phone="+1", date=TODAY,
+                      start_minute=720, people_count=2, duration_hours=1,
+                      status=BookingStatus.REJECTED))
+        s.add(Booking(user_id=1, full_name="Anvar", phone="+1", date=TODAY,
+                      start_minute=780, people_count=2, duration_hours=1,
+                      status=BookingStatus.PENDING))
+        # Bek: one accepted tomorrow (9 people, 2h).
+        s.add(Booking(user_id=2, full_name="Bek", phone="+2",
+                      date=date(2026, 7, 21), start_minute=660, people_count=9,
+                      duration_hours=2, status=BookingStatus.ACCEPTED))
+        await s.commit()
+
+
+async def test_overview_counts_each_status(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        ov = await stats.overview(s, TODAY)
+    assert ov["users"] == 2
+    assert ov["requests"] == 4
+    assert ov["accepted"] == 2
+    assert ov["rejected"] == 1
+    assert ov["pending"] == 1
+    assert ov["today"] == 1          # only Anvar's accepted one is today
+    assert ov["people"] == 13        # 4 + 9, accepted only
+    assert ov["hours"] == 3          # 1 + 2, accepted only
+
+
+async def test_overview_on_an_empty_database(session_factory):
+    async with session_factory() as s:
+        ov = await stats.overview(s, TODAY)
+    assert ov["requests"] == 0 and ov["people"] == 0 and ov["hours"] == 0
+
+
+async def test_user_stats_separate_requests_from_accepted(session_factory):
+    await _seed(session_factory)
+    async with session_factory() as s:
+        rows = await stats.all_user_stats(s)
+    anvar, bek = rows
+    assert (anvar.requests, anvar.accepted, anvar.people) == (3, 1, 4)
+    assert (bek.requests, bek.accepted, bek.people) == (1, 1, 9)
+    assert anvar.last_booking == TODAY
+    assert bek.last_booking == date(2026, 7, 21)
+
+
+async def test_user_with_no_bookings_is_still_listed(session_factory):
+    async with session_factory() as s:
+        s.add(User(telegram_id=9, full_name="Yangi", phone="+9"))
         await s.commit()
     async with session_factory() as s:
-        await slots.create_booking(s, 1, 1, date(2026, 7, 13), 600, 3)   # 10:00
-        await slots.create_booking(s, 1, 1, date(2026, 7, 20), 660, 2)   # 11:00
-        await slots.create_booking(s, 1, 1, date(2026, 7, 21), 720, 1)   # 12:00
-        await slots.create_booking(s, 2, 1, date(2026, 7, 13), 900, 4)   # 15:00
-
-
-async def test_overview(session_factory):
-    await _seed(session_factory)
-    async with session_factory() as s:
-        ov = await stats.overview(s, date(2026, 7, 13))
-        assert ov["users"] == 2
-        assert ov["bookings"] == 4
-        assert ov["today"] == 2
-        assert ov["people"] == 10  # 3 + 2 + 1 + 4
-        assert ov["hours"] == 4     # each spans 1 hour
-
-
-async def test_user_stats(session_factory):
-    await _seed(session_factory)
-    async with session_factory() as s:
-        rows, pages = await stats.user_stats_page(s, page=1, per_page=5)
-        assert pages == 1
-        anvar = next(r for r in rows if r.name == "Anvar")
-        assert anvar.bookings == 3
-        assert anvar.people == 6
-        assert anvar.last_booking == date(2026, 7, 21)
-        assert anvar.language == "ru"
-
-
-async def test_bookings_on_day_ordered_and_future(session_factory):
-    await _seed(session_factory)
-    now = datetime(2026, 7, 13, 8, 0)
-    async with session_factory() as s:
-        rows = await stats.bookings_on_day(s, date(2026, 7, 13), now)
-        assert [(r.start_minute, r.user_name) for r in rows] == [(600, "Anvar"), (900, "Bek")]
-
-
-async def test_bookings_on_day_hides_finished(session_factory):
-    await _seed(session_factory)
-    async with session_factory() as s:
-        # After 16:00 on 7/13 both that day's bookings (10:00, 15:00) are finished.
-        rows = await stats.bookings_on_day(s, date(2026, 7, 13), datetime(2026, 7, 13, 16, 30))
-        assert rows == []
-
-
-async def test_booking_counts(session_factory):
-    await _seed(session_factory)
-    now = datetime(2026, 7, 13, 8, 0)
-    async with session_factory() as s:
-        counts = await stats.booking_counts(s, [date(2026, 7, 13), date(2026, 7, 20)], now)
-        assert counts == {date(2026, 7, 13): 2, date(2026, 7, 20): 1}
+        row = (await stats.all_user_stats(s))[0]
+    assert row.requests == 0 and row.people == 0 and row.last_booking is None

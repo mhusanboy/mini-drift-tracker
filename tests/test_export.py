@@ -3,74 +3,67 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from bot.db.models import BookingStatus
+from bot.db.models import Booking, BookingStatus
 from bot.services.export import build_stats_workbook
-from bot.services.stats import BookingRow, UserStat
+from bot.services.stats import UserStat
+
+TODAY = date(2026, 7, 20)
+
+OVERVIEW = {
+    "users": 2, "requests": 4, "accepted": 2, "rejected": 1, "pending": 1,
+    "today": 1, "people": 13, "hours": 3,
+}
+USERS = [
+    UserStat(name="Anvar", phone="+998901234567", language="uz", requests=3,
+             accepted=1, people=4, first_seen=date(2026, 7, 1), last_booking=TODAY),
+    UserStat(name="Bek", phone="+998900000000", language="ru", requests=1,
+             accepted=1, people=9, first_seen=None, last_booking=None),
+]
+BOOKINGS = [
+    Booking(id=1, user_id=1, full_name="Anvar", phone="+998901234567",
+            when_text="ertaga 18:00", date=TODAY, start_minute=18 * 60,
+            people_count=4, duration_hours=1, status=BookingStatus.ACCEPTED,
+            created_at=datetime(2026, 7, 19, 10, 30)),
+    Booking(id=2, user_id=2, full_name="Bek", phone="+998900000000",
+            when_text="shanba kechqurun", date=None, start_minute=None,
+            people_count=9, duration_hours=2, status=BookingStatus.PENDING,
+            created_at=datetime(2026, 7, 19, 11, 0)),
+]
 
 
-def _sample():
-    overview = {"users": 2, "bookings": 3, "today": 1, "people": 15, "hours": 4}
-    users = [
-        UserStat(name="Anvar", phone="+1", language="uz", bookings=2, people=9,
-                 first_seen=date(2026, 7, 1), last_booking=date(2026, 7, 20)),
-        UserStat(name="Bek", phone="+2", language="ru", bookings=1, people=4,
-                 first_seen=date(2026, 7, 2), last_booking=date(2026, 7, 13)),
-    ]
-    bookings = [
-        BookingRow(id=1, date=date(2026, 7, 20), start_minute=600, num_hours=2, people_count=9,
-                   status=BookingStatus.CONFIRMED, attended=True, user_name="Anvar",
-                   user_phone="+1", created_at=datetime(2026, 7, 13, 9, 0)),
-        BookingRow(id=2, date=date(2026, 7, 13), start_minute=900, num_hours=1, people_count=4,
-                   status=BookingStatus.CONFIRMED, attended=None, user_name="Bek",
-                   user_phone="+2", created_at=datetime(2026, 7, 12, 8, 0)),
-        BookingRow(id=3, date=date(2026, 7, 21), start_minute=720, num_hours=1, people_count=2,
-                   status=BookingStatus.CANCELLED, attended=False, user_name="Anvar",
-                   user_phone="+1", created_at=datetime(2026, 7, 13, 10, 0)),
-    ]
-    return overview, users, bookings
+def _book():
+    return load_workbook(BytesIO(build_stats_workbook(OVERVIEW, USERS, BOOKINGS, TODAY, "uz")))
 
 
-def test_workbook_has_three_localized_sheets_ru():
-    overview, users, bookings = _sample()
-    data = build_stats_workbook(overview, users, bookings, date(2026, 7, 14), "ru")
-    wb = load_workbook(BytesIO(data))
-    assert wb.sheetnames == ["Обзор", "Клиенты", "Брони"]
+def test_workbook_has_the_three_sheets():
+    assert _book().sheetnames == ["Umumiy", "Mijozlar", "Bronlar"]
 
 
-def test_workbook_sheets_localized_uz():
-    overview, users, bookings = _sample()
-    data = build_stats_workbook(overview, users, bookings, date(2026, 7, 14), "uz")
-    wb = load_workbook(BytesIO(data))
-    assert wb.sheetnames == ["Umumiy", "Mijozlar", "Bronlar"]
+def test_overview_sheet_carries_every_metric():
+    values = [row[1] for row in _book()["Umumiy"].iter_rows(values_only=True) if row[1] is not None]
+    assert values == [2, 4, 2, 1, 1, 1, 13, 3]
 
 
-def test_customers_sheet_content():
-    overview, users, bookings = _sample()
-    data = build_stats_workbook(overview, users, bookings, date(2026, 7, 14), "ru")
-    wb = load_workbook(BytesIO(data))
-    ws = wb["Клиенты"]
-    assert ws.cell(row=1, column=1).value == "Имя"
-    names = {ws.cell(row=r, column=1).value for r in (2, 3)}
-    assert names == {"Anvar", "Bek"}
+def test_customer_rows():
+    rows = list(_book()["Mijozlar"].iter_rows(min_row=2, values_only=True))
+    assert rows[0][:6] == ("Anvar", "+998901234567", "uz", 3, 1, 4)
+    # A user who never booked leaves the date cells empty, not the word "None".
+    assert rows[1][6] is None and rows[1][7] is None
 
 
-def test_bookings_sheet_lists_all_statuses():
-    overview, users, bookings = _sample()
-    data = build_stats_workbook(overview, users, bookings, date(2026, 7, 14), "ru")
-    wb = load_workbook(BytesIO(data))
-    ws = wb["Брони"]
-    # Columns: date, start, end, hours, people, customer, phone, status(8), created(9).
-    statuses = {ws.cell(row=r, column=8).value for r in (2, 3, 4)}
-    assert statuses == {"confirmed", "cancelled"}
-    # 10:00 (600 min) + 2h -> end 12:00 on the first (sorted) booking.
-    assert ws.cell(row=2, column=2).value == "10:00"
-    assert ws.cell(row=2, column=3).value == "12:00"
+def test_booking_rows_show_the_resolved_span():
+    rows = list(_book()["Bronlar"].iter_rows(min_row=2, values_only=True))
+    assert rows[0][1] == "2026-07-20 18:00–19:00"
+    assert rows[0][2] == "ertaga 18:00"   # what the customer actually typed
 
 
-def test_overview_sheet_has_metrics():
-    overview, users, bookings = _sample()
-    data = build_stats_workbook(overview, users, bookings, date(2026, 7, 14), "ru")
-    wb = load_workbook(BytesIO(data))
-    flat = [c for row in wb["Обзор"].iter_rows(values_only=True) for c in row]
-    assert 15 in flat  # total people metric
-    assert 4 in flat   # total hours metric
+def test_an_unresolved_booking_falls_back_to_the_raw_text():
+    rows = list(_book()["Bronlar"].iter_rows(min_row=2, values_only=True))
+    assert rows[1][0] is None                  # no date to put in the date column
+    assert rows[1][1] == "shanba kechqurun"    # the words instead of a span
+
+
+def test_status_is_localized_not_raw():
+    rows = list(_book()["Bronlar"].iter_rows(min_row=2, values_only=True))
+    assert rows[0][5] == "✅ qabul qilindi"
+    assert rows[1][5] == "⏳ kutilmoqda"

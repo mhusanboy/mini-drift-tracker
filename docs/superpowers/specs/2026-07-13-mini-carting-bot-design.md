@@ -3,6 +3,34 @@
 **Date:** 2026-07-13
 **Status:** Approved
 
+> **Update 2026-07-16b — the admin decides, and the bot tracks again.** The DM
+> deep link stays, but the bot now also **records every request** and notifies
+> the admin with a card (client, phone, time, people, expected duration) carrying
+> **Accept / Reject / Edit** — edit covers time, duration and headcount and
+> rewrites the same card. Customers answer one extra question (**how many
+> people**) and get no status updates in the bot. Restored from the retired slot
+> engine: **working hours** (in Sozlamalar), the 30-minute grid, free/busy
+> tracking (**Bo'sh vaqtlarni ko'rish**, today + tomorrow), **stats**, and the
+> **Excel history**. Decisions taken: only *accepted* requests hold a time;
+> duration is `ceil(people/6)` unless an admin pins it; accepting into a taken
+> slot warns but is allowed; free-text times are parsed best-effort and flagged
+> for the admin when unreadable. Requests live in a new `booking_requests` table
+> — the old `bookings` table is incompatible and is left untouched. The bot
+> cannot detect a deep-link tap, so the notification fires when the customer
+> finishes the flow.
+>
+> **Update 2026-07-16 — bookings move to the admin's DM.** The bot no longer
+> holds a calendar. The whole slot engine (computed availability, the 30-minute
+> grid, day-offs, the 1h reminder, attendance, ratings, stats and the Excel
+> export) was **removed**, along with the `bookings` and `day_offs` tables. The
+> customer menu is now **Lokatsiya / Narxlar / Aksiyalar / Bron qilish**; Bron
+> qilish asks for a free-text day+time and returns a `t.me/<username>?text=…`
+> deep link that opens the admin's DM with the request pre-written — the two
+> settle it there. Admin side is just **Sozlamalar** (prices as free text,
+> location, aksiyalar with optional photo/video, and the booking username) and
+> **Users**. `branches` was superseded by a single-row `service` table; promos
+> live in `promos`. Sections below (and the 2026-07-15 note) are history.
+>
 > **Update 2026-07-15 — pivot to a single service (no branches).** The bot now
 > serves ONE service instead of multiple branches. The branch selection, branch
 > list, add/delete/activate-deactivate, and per-branch stats were removed.
