@@ -1,4 +1,4 @@
-from bot.locales import LANGUAGES, t
+from bot.locales import _STRINGS, LANGUAGES, t
 
 
 def test_returns_localized_string():
@@ -6,8 +6,9 @@ def test_returns_localized_string():
 
 
 def test_formatting_kwargs():
-    msg = t("booking_confirmed", "ru", date="2026-07-20", time="11:30")
-    assert "2026-07-20" in msg and "11:30" in msg
+    msg = t("booking_dm_template", "uz", name="Anvar", when="ertaga 18:00",
+            phone="+998", people=3)
+    assert "Anvar" in msg and "ertaga 18:00" in msg and "+998" in msg and "3" in msg
 
 
 def test_unknown_lang_falls_back_to_ru():
@@ -20,3 +21,7 @@ def test_missing_key_returns_key():
 
 def test_languages_map():
     assert set(LANGUAGES) == {"ru", "uz"}
+
+
+def test_both_locales_define_the_same_keys():
+    assert set(_STRINGS["ru"]) == set(_STRINGS["uz"])
