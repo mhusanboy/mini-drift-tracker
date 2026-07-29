@@ -14,6 +14,7 @@ from bot.config import get_settings
 from bot.db.models import BookingStatus
 from bot.handlers import ui
 from bot.keyboards.booking import card_back_kb, card_conflict_kb, card_edit_kb, card_kb
+from bot.keyboards.common import main_menu_kb
 from bot.locales import t
 from bot.services import bookings, notify, slots, whenparse
 from bot.states import EditCard
@@ -54,6 +55,20 @@ async def _decide(cb: CallbackQuery, booking_id: int, status: str, lang: str,
     await cb.answer(t(toast, lang))
 
 
+async def _accept_and_home(cb: CallbackQuery, booking_id: int, lang: str, session_factory) -> None:
+    """Accept, then retire the card and drop back to the home screen — an
+    accepted booking is done, so its card is no longer needed."""
+    async with session_factory() as session:
+        booking = await bookings.set_status(session, booking_id, BookingStatus.ACCEPTED)
+    if booking is None:
+        await cb.answer(t("card_gone", lang), show_alert=True)
+        return
+    await cb.answer(t("card_accepted_toast", lang))
+    await ui.delete(cb.message)
+    is_admin = _is_admin(cb.from_user.id)
+    await ui.show_screen(cb.message, t("main_menu_title", lang), main_menu_kb(lang, is_admin))
+
+
 @router.callback_query(F.data.startswith("bk:accept:"))
 async def accept(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
@@ -80,8 +95,7 @@ async def accept(cb: CallbackQuery, lang: str, session_factory):
                            card_conflict_kb(booking.id, lang))
         await cb.answer()
         return
-    await _decide(cb, booking.id, BookingStatus.ACCEPTED, lang, session_factory,
-                  "card_accepted_toast")
+    await _accept_and_home(cb, booking.id, lang, session_factory)
 
 
 @router.callback_query(F.data.startswith("bk:force:"))
@@ -89,8 +103,7 @@ async def accept_anyway(cb: CallbackQuery, lang: str, session_factory):
     if not _is_admin(cb.from_user.id):
         await cb.answer(t("not_authorized", lang), show_alert=True)
         return
-    await _decide(cb, int(cb.data.split(":")[-1]), BookingStatus.ACCEPTED, lang,
-                  session_factory, "card_accepted_toast")
+    await _accept_and_home(cb, int(cb.data.split(":")[-1]), lang, session_factory)
 
 
 @router.callback_query(F.data.startswith("bk:reject:"))
@@ -158,9 +171,8 @@ async def ask_field(cb: CallbackQuery, state: FSMContext, lang: str, session_fac
 
 
 async def _reject_input(message: Message, state: FSMContext, lang: str, key: str) -> None:
-    """Drop what the admin typed and leave the prompt showing why."""
+    """Leave the admin's message in place; show why it wasn't accepted on the card."""
     data = await state.get_data()
-    await ui.drop(message)
     await ui.edit_message(
         message.bot, data["card_chat"], data["card_id"], t(key, lang),
         card_back_kb(data["booking_id"], lang),
@@ -169,7 +181,6 @@ async def _reject_input(message: Message, state: FSMContext, lang: str, key: str
 
 async def _restore_card(message: Message, state: FSMContext, booking, lang: str) -> None:
     data = await state.get_data()
-    await ui.drop(message)
     await ui.edit_message(
         message.bot, data["card_chat"], data["card_id"],
         notify.card_text(booking, lang), card_kb(booking, lang),

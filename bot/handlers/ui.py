@@ -1,10 +1,11 @@
 """Keeping the chat down to a single live screen.
 
-The bot remembers every message it currently has on screen in a chat. Inline
-buttons edit the message they sit on, so navigation replaces the screen in
-place. Typed input cannot do that — the reply has to be a new message at the
-bottom — so the prompt above it and the user's own message are deleted first,
-and the conversation continues in the new message.
+The bot only ever deletes its *own* messages, never the user's. It remembers
+every message it currently has on screen in a chat. Inline buttons edit the
+message they sit on, so navigation replaces the screen in place. Typed input
+cannot be edited into place, so the bot's now-stale screen above is deleted and
+the reply continues in a new message at the bottom — the user's own message
+(their /start, their typed answer) is left exactly where it is.
 
 The registry is in-memory, like the FSM: a restart leaves one stale screen
 behind that later navigation no longer knows to clean up. Deletes are always
@@ -43,8 +44,10 @@ def own(sent: Message) -> Message:
     return sent
 
 
-async def drop(message: Message) -> None:
-    """Delete a message the user sent — it is not part of the screen."""
+async def delete(message: Message) -> None:
+    """Delete one specific bot message that is no longer needed (e.g. a booking
+    request card the admin has finished with). Never call this on a user's
+    message — the bot does not delete those."""
     await _delete(message.bot, message.chat.id, message.message_id)
 
 
@@ -72,9 +75,8 @@ async def show_screen(message: Message, text: str, reply_markup=None) -> Message
 
 
 async def replace_screen(message: Message, text: str, reply_markup=None) -> Message:
-    """Answer typed input: drop the user's message and the prompt above it, then
-    continue in a new screen at the bottom."""
-    await drop(message)
+    """Answer typed input: clear the bot's now-stale screen above and continue in
+    a fresh screen at the bottom. The user's own message is left in place."""
     return await show_screen(message, text, reply_markup)
 
 

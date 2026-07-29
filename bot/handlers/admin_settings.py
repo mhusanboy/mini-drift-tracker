@@ -52,7 +52,6 @@ async def _settings_content(session_factory, lang: str, notice: str | None = Non
 
 @router.message(Command("service"))
 async def cmd_service(message: Message, lang: str, session_factory):
-    await ui.drop(message)
     if not _is_admin(message.from_user.id):
         await ui.send(message, t("not_authorized", lang))
         return

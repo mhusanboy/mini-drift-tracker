@@ -21,7 +21,6 @@ async def show_main_menu(message: Message, user_id: int, lang: str) -> None:
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, user: User | None):
     await state.clear()
-    await ui.drop(message)
     if user is not None:
         await show_main_menu(message, message.from_user.id, user.language)
         return
@@ -69,7 +68,6 @@ async def reg_phone(message: Message, state: FSMContext, session_factory):
         ))
         await session.commit()
     await state.clear()
-    await ui.drop(message)
     await ui.purge(message.bot, message.chat.id)
     # Only a message carrying ReplyKeyboardRemove dismisses the phone keyboard,
     # so the welcome carries it and is then edited into the menu — one message

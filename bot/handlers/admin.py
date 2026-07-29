@@ -26,7 +26,6 @@ def _is_admin(user_id: int) -> bool:
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, lang: str):
-    await ui.drop(message)
     if not _is_admin(message.from_user.id):
         await ui.send(message, t("not_authorized", lang))
         return
@@ -101,7 +100,6 @@ async def _stats_content(session_factory, lang: str):
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message, lang: str, session_factory):
-    await ui.drop(message)
     if not _is_admin(message.from_user.id):
         await ui.send(message, t("not_authorized", lang))
         return
@@ -136,7 +134,6 @@ async def _send_history(target: Message, session_factory, lang: str) -> None:
 
 @router.message(Command("export"))
 async def cmd_export(message: Message, lang: str, session_factory):
-    await ui.drop(message)
     if not _is_admin(message.from_user.id):
         await ui.send(message, t("not_authorized", lang))
         return
@@ -172,7 +169,6 @@ async def _users_content(page: int, session_factory, lang: str):
 
 @router.message(Command("users"))
 async def cmd_users(message: Message, lang: str, session_factory):
-    await ui.drop(message)
     if not _is_admin(message.from_user.id):
         await ui.send(message, t("not_authorized", lang))
         return

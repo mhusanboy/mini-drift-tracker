@@ -68,16 +68,22 @@ async def test_show_screen_clears_the_previous_screen():
     assert ui._live[CHAT] == [second.message_id]
 
 
-async def test_replace_screen_drops_the_users_message_and_the_prompt_above_it():
+async def test_replace_screen_keeps_the_users_message_but_clears_the_stale_screen():
     bot = FakeBot()
     root = bot.new_message(CHAT)
     prompt = await ui.show_screen(root, "which day and time?")
-    typed = bot.new_message(CHAT, "ertaga 18:00")  # what the user sent
+    typed = bot.new_message(CHAT, "ertaga 18:00")  # the user's own message
     answer = await ui.replace_screen(typed, "here is your link")
-    assert typed.message_id in bot.deleted
-    assert prompt.message_id in bot.deleted
-    # Only the new message is left on screen.
+    assert typed.message_id not in bot.deleted   # user messages are never deleted
+    assert prompt.message_id in bot.deleted        # the bot's stale screen is
     assert ui._live[CHAT] == [answer.message_id]
+
+
+async def test_delete_removes_a_single_bot_message():
+    bot = FakeBot()
+    card = bot.new_message(CHAT, "a finished card")
+    await ui.delete(card)
+    assert bot.deleted == [card.message_id]
 
 
 async def test_messages_sent_alongside_the_screen_are_cleared_with_it():
