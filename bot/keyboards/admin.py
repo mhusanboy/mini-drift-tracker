@@ -1,59 +1,60 @@
+from datetime import date
+
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.keyboards.common import with_back
+from bot.keyboards.common import day_label, with_back
 from bot.locales import t
-
-# Promo text is free-form and can be long; a button label cannot be.
-PROMO_LABEL_LEN = 28
+from bot.timeutil import fmt_minutes
 
 
 def admin_panel_kb(lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=t("btn_admin_settings", lang), callback_data="adm:settings")
-    b.button(text=t("btn_admin_free", lang), callback_data="adm:free")
+    b.button(text=t("btn_admin_service", lang), callback_data="adm:service")
+    b.button(text=t("btn_admin_bookings", lang), callback_data="adm:bookings")
+    b.button(text=t("btn_admin_dayoffs", lang), callback_data="adm:dayoffs")
     b.button(text=t("btn_admin_stats", lang), callback_data="adm:stats")
-    b.button(text=t("btn_admin_history", lang), callback_data="adm:history")
     b.button(text=t("btn_admin_users", lang), callback_data="adm:users")
+    b.button(text=t("btn_admin_export", lang), callback_data="adm:export")
     b.adjust(1)
     return with_back(b.as_markup(), "back:main", lang)
 
 
-def settings_kb(lang: str) -> InlineKeyboardMarkup:
+def service_edit_kb(lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=t("btn_edit_price", lang), callback_data="adm:price")
-    b.button(text=t("btn_edit_hours", lang), callback_data="adm:hours")
-    b.button(text=t("btn_edit_location", lang), callback_data="adm:location")
-    b.button(text=t("btn_edit_promos", lang), callback_data="adm:promos")
-    b.button(text=t("btn_edit_username", lang), callback_data="adm:username")
+    b.button(text=t("btn_edit_service", lang), callback_data="adm:service:edit")
     b.adjust(1)
     return with_back(b.as_markup(), "back:panel", lang)
 
 
-def promo_label(text: str) -> str:
-    """First line of the promo, clipped to fit on a button."""
-    first = text.strip().splitlines()[0] if text.strip() else "—"
-    if len(first) > PROMO_LABEL_LEN:
-        first = first[: PROMO_LABEL_LEN - 1].rstrip() + "…"
-    return first
-
-
-def promos_admin_kb(promos, lang: str) -> InlineKeyboardMarkup:
+def admin_days_kb(days: list[date], counts: dict, today: date, lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    for p in promos:
+    for d in days:
         b.button(
-            text=t("btn_del_promo", lang, text=promo_label(p.text)),
-            callback_data=f"promo:del:{p.id}",
+            text=f"{day_label(d, today, lang)} ({counts.get(d, 0)})",
+            callback_data=f"adm:bday:{d.isoformat()}",
         )
-    b.button(text=t("btn_add_promo", lang), callback_data="promo:add")
-    b.adjust(1)
-    return with_back(b.as_markup(), "back:settings", lang)
-
-
-def users_page_kb(page: int, pages: int, lang: str) -> InlineKeyboardMarkup:
-    b = InlineKeyboardBuilder()
-    if page > 1:
-        b.button(text="⬅️", callback_data=f"users:page:{page - 1}")
-    if page < pages:
-        b.button(text="➡️", callback_data=f"users:page:{page + 1}")
+    b.adjust(3)
     return with_back(b.as_markup(), "back:panel", lang)
+
+
+def dayoffs_kb(days: list[date], offs: set, today: date, lang: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for d in days:
+        mark = "🚫" if d in offs else "🟢"
+        b.button(text=f"{mark} {day_label(d, today, lang)}", callback_data=f"adm:dayoff:{d.isoformat()}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:panel", lang)
+
+
+def day_bookings_kb(bookings, lang: str) -> InlineKeyboardMarkup:
+    """Per booking: a 'Came' / 'No-show' toggle pair (current mark highlighted)."""
+    b = InlineKeyboardBuilder()
+    for bk in bookings:
+        tm = fmt_minutes(bk.start_minute)
+        came = ("✅ " if bk.attended is True else "") + t("btn_att_came", lang, time=tm)
+        no = ("❌ " if bk.attended is False else "") + t("btn_att_no", lang, time=tm)
+        b.button(text=came, callback_data=f"att:came:{bk.id}")
+        b.button(text=no, callback_data=f"att:no:{bk.id}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:bdays", lang)

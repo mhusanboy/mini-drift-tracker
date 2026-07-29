@@ -1,44 +1,63 @@
-"""Keyboards for the admin's booking-request card."""
+from datetime import date
+
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.db.models import BookingStatus
+from bot.keyboards.common import day_label, with_back
 from bot.locales import t
+from bot.timeutil import fmt_minutes
 
 
-def card_kb(booking, lang: str) -> InlineKeyboardMarkup:
-    """Accept / Reject / Edit. The decision already taken is marked, and stays
-    tappable so it can be changed."""
+def days_kb(days: list[date], today: date, lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    accepted = "🔸 " if booking.status == BookingStatus.ACCEPTED else ""
-    rejected = "🔸 " if booking.status == BookingStatus.REJECTED else ""
-    b.button(text=accepted + t("btn_card_accept", lang), callback_data=f"bk:accept:{booking.id}")
-    b.button(text=rejected + t("btn_card_reject", lang), callback_data=f"bk:reject:{booking.id}")
-    b.button(text=t("btn_card_edit", lang), callback_data=f"bk:edit:{booking.id}")
-    b.adjust(2, 1)
-    return b.as_markup()
+    for d in days:
+        b.button(text=day_label(d, today, lang), callback_data=f"day:{d.isoformat()}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:main", lang)
 
 
-def card_edit_kb(booking, lang: str) -> InlineKeyboardMarkup:
+def slots_kb(slots_min: list[int], lang: str) -> InlineKeyboardMarkup:
+    """Free start times in chronological order, two per row (e.g.
+    16:30 | 17:00 / 17:30 | 18:00). Whether a row starts on :00 or :30 just
+    depends on which slots are free."""
     b = InlineKeyboardBuilder()
-    b.button(text=t("btn_card_edit_time", lang), callback_data=f"bk:set:time:{booking.id}")
-    b.button(text=t("btn_card_edit_duration", lang), callback_data=f"bk:set:dur:{booking.id}")
-    b.button(text=t("btn_card_edit_people", lang), callback_data=f"bk:set:people:{booking.id}")
-    b.button(text=t("back", lang), callback_data=f"bk:card:{booking.id}")
+    for m in sorted(slots_min):
+        b.button(text=fmt_minutes(m), callback_data=f"slot:{m}")
+    b.adjust(2)
+    return with_back(b.as_markup(), "back:days", lang)
+
+
+def confirm_kb(lang: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=t("btn_confirm", lang), callback_data="confirm:yes")
+    b.button(text=t("back", lang), callback_data="back:times")
     b.adjust(1)
     return b.as_markup()
 
 
-def card_back_kb(booking_id: int, lang: str) -> InlineKeyboardMarkup:
-    """Sole way out of a prompt that is waiting for typed input."""
+def my_bookings_kb(bookings, lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=t("back", lang), callback_data=f"bk:card:{booking_id}")
+    for bk in bookings:
+        b.button(
+            text=t("btn_cancel_booking", lang, date=bk.date.strftime("%d.%m"),
+                   time=fmt_minutes(bk.start_minute)),
+            callback_data=f"cancelbk:{bk.id}",
+        )
+    b.adjust(1)
+    return with_back(b.as_markup(), "back:main", lang)
+
+
+def come_kb(booking_id: int, lang: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=t("btn_come_yes", lang), callback_data=f"come:yes:{booking_id}")
+    b.button(text=t("btn_come_no", lang), callback_data=f"come:no:{booking_id}")
+    b.adjust(1)
     return b.as_markup()
 
 
-def card_conflict_kb(booking_id: int, lang: str) -> InlineKeyboardMarkup:
+def rating_kb(booking_id: int, lang: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=t("btn_conflict_yes", lang), callback_data=f"bk:force:{booking_id}")
-    b.button(text=t("back", lang), callback_data=f"bk:card:{booking_id}")
-    b.adjust(1)
+    for n in range(1, 6):
+        b.button(text=f"{n}⭐", callback_data=f"rate:{booking_id}:{n}")
+    b.adjust(5)
     return b.as_markup()

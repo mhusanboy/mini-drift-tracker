@@ -11,14 +11,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.locales import LANGUAGES, t
 
 
-def day_label(day: date, today: date, lang: str) -> str:
-    if day == today:
-        return t("today", lang)
-    if (day - today).days == 1:
-        return t("tomorrow", lang)
-    return day.strftime("%d.%m")
-
-
 def back_button(target: str, lang: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=t("back", lang), callback_data=target)
 
@@ -46,10 +38,8 @@ def language_kb(lang: str = "ru", back: str | None = None) -> InlineKeyboardMark
 
 def main_menu_kb(lang: str, is_admin: bool = False) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=t("btn_location", lang), callback_data="menu:location")
-    b.button(text=t("btn_prices", lang), callback_data="menu:prices")
-    b.button(text=t("btn_promos", lang), callback_data="menu:promos")
     b.button(text=t("btn_book", lang), callback_data="menu:book")
+    b.button(text=t("btn_my_bookings", lang), callback_data="menu:mybookings")
     b.button(text=t("btn_language", lang), callback_data="menu:language")
     if is_admin:
         b.button(text=t("btn_admin", lang), callback_data="adm:panel")
@@ -65,9 +55,9 @@ def phone_kb(lang: str) -> ReplyKeyboardMarkup:
     )
 
 
-def booking_link_kb(url: str, lang: str) -> InlineKeyboardMarkup:
-    """The deep link into the admin's DM, plus a way back to the menu."""
-    markup = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=t("btn_open_dm", lang), url=url)]]
-    )
-    return with_back(markup, "back:main", lang)
+def day_label(d: date, today: date, lang: str) -> str:
+    if d == today:
+        return t("today", lang)
+    if (d - today).days == 1:
+        return t("tomorrow", lang)
+    return d.strftime("%d.%m")

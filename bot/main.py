@@ -7,18 +7,29 @@ from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefaul
 
 from bot.config import get_settings
 from bot.db.base import init_db, make_engine, make_session_factory
-from bot.handlers import admin, admin_cards, admin_settings, menu, start
+from bot.handlers import (
+    admin,
+    admin_bookings,
+    admin_dayoffs,
+    admin_service,
+    booking,
+    mybookings,
+    reminders,
+    start,
+)
 from bot.middlewares.user import UserMiddleware
+from bot.services.scheduler import run_scheduler
 
 DEFAULT_COMMANDS = [
     BotCommand(command="start", description="Boshlash / Начать"),
+    BotCommand(command="mybookings", description="Mening bronlarim / Мои брони"),
 ]
 ADMIN_COMMANDS = DEFAULT_COMMANDS + [
     BotCommand(command="admin", description="Админ-панель / Admin panel"),
     BotCommand(command="service", description="Настройки / Sozlamalar"),
     BotCommand(command="stats", description="Статистика / Statistika"),
-    BotCommand(command="export", description="История броней / Bronlar tarixi"),
     BotCommand(command="users", description="Пользователи / Foydalanuvchilar"),
+    BotCommand(command="export", description="Excel"),
 ]
 
 
@@ -47,16 +58,21 @@ async def main() -> None:
     dp.callback_query.middleware(middleware)
 
     dp.include_router(start.router)
-    dp.include_router(menu.router)
+    dp.include_router(booking.router)
+    dp.include_router(mybookings.router)
+    dp.include_router(reminders.router)
     dp.include_router(admin.router)
-    dp.include_router(admin_cards.router)
-    dp.include_router(admin_settings.router)
+    dp.include_router(admin_service.router)
+    dp.include_router(admin_bookings.router)
+    dp.include_router(admin_dayoffs.router)
 
+    scheduler_task = asyncio.create_task(run_scheduler(bot, session_factory))
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await setup_commands(bot, settings.admin_ids)
         await dp.start_polling(bot)
     finally:
+        scheduler_task.cancel()
         await bot.session.close()
         await engine.dispose()
 

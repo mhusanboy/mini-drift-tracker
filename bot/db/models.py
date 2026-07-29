@@ -6,23 +6,20 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
-    Text,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.db.base import Base
 
-PHOTO = "photo"
-VIDEO = "video"
-
 
 class BookingStatus:
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
 
 
 class User(Base):
@@ -34,74 +31,71 @@ class User(Base):
     language: Mapped[str] = mapped_column(String, nullable=False, default="ru")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="user")
 
-class Service(Base):
-    """Everything the admin configures, as a single row (id == 1)."""
 
-    __tablename__ = "service"
+class Branch(Base):
+    __tablename__ = "branches"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    # Free-text price list, shown to customers verbatim.
-    price_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Telegram username the "Bron qilish" deep link opens, stored without "@".
-    booking_username: Mapped[str | None] = mapped_column(String, nullable=True)
-    # Opening hours, needed to work out which times are still free. Null until
-    # the admin sets them.
-    open_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    open_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    close_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    close_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Location: a shared Telegram point (lat/lng, plus a title/address when the
-    # admin shares a venue) or a maps link. Either may be unset.
-    title: Mapped[str | None] = mapped_column(String, nullable=True)
-    address: Mapped[str | None] = mapped_column(String, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    address: Mapped[str] = mapped_column(String, nullable=False)
+    open_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    open_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    close_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+    close_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Location: either a shared Telegram point (lat/lng) or a map link (URL).
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     location_url: Mapped[str | None] = mapped_column(String, nullable=True)
-
-
-class Promo(Base):
-    """An "aksiya": description text plus an optional photo or video."""
-
-    __tablename__ = "promos"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    text: Mapped[str] = mapped_column(Text, nullable=False)
-    # PHOTO / VIDEO / None. file_id is a Telegram file id, valid for this bot.
-    media_type: Mapped[str | None] = mapped_column(String, nullable=True)
-    file_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="branch")
+
+
+class DayOff(Base):
+    """A single calendar date on which the service is closed (no bookings).
+    Presence of a row = that date is a day-off; toggling adds/removes it."""
+
+    __tablename__ = "day_offs"
+
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
 
 
 class Booking(Base):
-    """A booking request: raised by a customer, decided by an admin.
-
-    Deliberately not called "bookings" — databases from the retired slot engine
-    still carry a table by that name with incompatible NOT NULL columns, and the
-    migrator only ever adds.
-    """
-
-    __tablename__ = "booking_requests"
+    __tablename__ = "bookings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"), nullable=False)
-    # Snapshotted so history still reads correctly if the customer's profile
-    # changes later.
-    full_name: Mapped[str] = mapped_column(String, nullable=False, default="")
-    phone: Mapped[str] = mapped_column(String, nullable=False, default="")
-    # Exactly what the customer typed, kept even when it parsed cleanly.
-    when_text: Mapped[str] = mapped_column(String, nullable=False, default="")
-    # The parsed slot. Null when the text could not be understood and no admin
-    # has set it yet — such a request holds no time.
-    date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    start_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    people_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    duration_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    # Set once an admin picks a duration by hand, which stops a later people
-    # edit from silently recalculating over it.
-    duration_overridden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.PENDING)
+    # Nullable so a branch can be deleted while its bookings survive as history.
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True)
+    # Denormalized branch name kept even after the branch row is deleted.
+    branch_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Minutes since midnight, in 30-minute steps (e.g. 690 == 11:30).
+    start_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    num_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    people_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.CONFIRMED)
+    # ~1h-before "are you coming?" reminder was sent.
+    reminded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # None = not marked yet, True = came, False = no-show.
+    attended: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    user: Mapped["User"] = relationship()
+    user: Mapped["User"] = relationship(back_populates="bookings")
+    branch: Mapped["Branch"] = relationship(back_populates="bookings")
+
+    __table_args__ = (
+        Index(
+            "uq_booking_confirmed_slot",
+            "branch_id",
+            "date",
+            "start_minute",
+            unique=True,
+            sqlite_where=text("status = 'confirmed'"),
+        ),
+    )

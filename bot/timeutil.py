@@ -1,14 +1,19 @@
-"""Parsing and formatting of clock times entered by admins."""
+"""Parsing and formatting of clock times entered by admins.
+
+Opening/closing times accept ``11``, ``11:00`` and ``11:30``. Values are stored
+as an (hour, minute) pair on the branch; bookable slots remain on the hour, so a
+half-hour opening simply pushes the first slot to the next full hour.
+"""
 DAY_MINUTES = 24 * 60
 
 
 def parse_time(text: str) -> int | None:
-    """Parse ``11`` / ``11:00`` / ``11.30`` into minutes since midnight.
+    """Parse ``11`` / ``11:00`` / ``11:30`` into minutes since midnight.
 
     Returns the total minutes (0..1440, where 1440 == 24:00 midnight) or
     ``None`` if the text is not a valid time.
     """
-    text = text.strip().replace(".", ":")
+    text = text.strip()
     if not text:
         return None
     parts = text.split(":")
