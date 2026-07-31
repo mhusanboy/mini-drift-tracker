@@ -90,6 +90,26 @@ def free_slots(
     ]
 
 
+def covered_by(taken: list[Booking], minute: int) -> Booking | None:
+    """The accepted booking occupying this start minute, if any."""
+    for b in taken:
+        if b.start_minute <= minute < b.start_minute + b.duration_hours * 60:
+            return b
+    return None
+
+
+def day_schedule(
+    service: Service, taken: list[Booking], day: date, now: datetime
+) -> list[tuple[int, bool]]:
+    """Every grid start for the day as ``(minute, busy)`` — busy meaning an
+    accepted booking sits on it. Past starts are dropped for today."""
+    now_min = now.hour * 60 + now.minute if day == now.date() else -1
+    return [
+        (start, covered_by(taken, start) is not None)
+        for start in grid(service) if start > now_min
+    ]
+
+
 async def conflicts_for(session: AsyncSession, booking: Booking) -> list[Booking]:
     """Accepted bookings whose time clashes with this one. Empty when the
     booking holds no time yet."""

@@ -128,3 +128,27 @@ async def test_conflicts_for_ignores_a_booking_against_itself(session_factory):
 async def test_a_request_with_no_time_conflicts_with_nothing(session_factory):
     async with session_factory() as s:
         assert await slots.conflicts_for(s, _booking(None)) == []
+
+
+def test_covered_by_is_half_open():
+    taken = [_booking(18 * 60, hours=2)]   # 18:00-20:00
+    assert slots.covered_by(taken, 18 * 60).start_minute == 18 * 60
+    assert slots.covered_by(taken, 19 * 60 + 30) is not None   # within
+    assert slots.covered_by(taken, 20 * 60) is None            # the end is free
+    assert slots.covered_by(taken, 17 * 60 + 30) is None       # before the start
+
+
+def test_day_schedule_flags_every_grid_start():
+    taken = [_booking(18 * 60, hours=1)]   # 18:00-19:00
+    sched = dict(slots.day_schedule(_service(17, 21), taken, DAY, BEFORE_OPEN))
+    assert sched[17 * 60] is False         # 17:00 free
+    assert sched[18 * 60] is True          # 18:00 busy
+    assert sched[18 * 60 + 30] is True     # 18:30 busy (inside the span)
+    assert sched[19 * 60] is False         # 19:00 free (span end is exclusive)
+
+
+def test_day_schedule_drops_past_starts_today():
+    now = datetime(2026, 7, 20, 18, 15)
+    minutes = [m for m, _ in slots.day_schedule(_service(17, 21), [], DAY, now)]
+    assert 17 * 60 not in minutes and 18 * 60 not in minutes   # already past
+    assert 18 * 60 + 30 in minutes                             # still to come

@@ -1,11 +1,39 @@
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.keyboards.common import with_back
+from bot.keyboards.common import back_button, with_back
 from bot.locales import t
+from bot.timeutil import fmt_minutes
 
 # Promo text is free-form and can be long; a button label cannot be.
 PROMO_LABEL_LEN = 28
+
+
+def free_times_kb(days, lang: str) -> InlineKeyboardMarkup:
+    """All start times for each day as a 2-column grid. Busy slots carry a ❌ and
+    open the booking's details on tap; a per-day header labels each block.
+
+    ``days`` is a list of ``{"date": date, "label": str, "slots": [(minute, busy)]}``.
+    """
+    rows: list[list[InlineKeyboardButton]] = []
+    for d in days:
+        rows.append([InlineKeyboardButton(
+            text=t("free_day", lang, day=d["label"], date=d["date"].strftime("%d.%m")),
+            callback_data="free:noop",
+        )])
+        pair: list[InlineKeyboardButton] = []
+        for minute, busy in d["slots"]:
+            pair.append(InlineKeyboardButton(
+                text=fmt_minutes(minute) + (" ❌" if busy else ""),
+                callback_data=f"free:slot:{d['date'].isoformat()}:{minute}",
+            ))
+            if len(pair) == 2:
+                rows.append(pair)
+                pair = []
+        if pair:
+            rows.append(pair)
+    rows.append([back_button("back:panel", lang)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def admin_panel_kb(lang: str) -> InlineKeyboardMarkup:

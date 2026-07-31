@@ -96,11 +96,11 @@ _STRINGS = {
         "card_gone": "Заявка не найдена.",
         # free times
         "free_title": "🕐 Свободное время",
+        "free_hint": "Занятое время помечено ❌ — нажмите на него, чтобы увидеть бронь.",
         "free_hours_not_set": "Сначала укажите рабочее время в ⚙️ Настройках.",
         "free_day": "📅 {day}, {date}",
-        "free_none": "нет свободного времени",
-        "free_busy_title": "Занято:",
-        "free_busy_row": "{start}–{end} · {name} ({people} чел.)",
+        "free_slot_free_toast": "Свободно",
+        "free_slot_detail": "{time}–{end}\n{name} · {people} чел.",
         # stats
         "stats_overview": (
             "📊 Статистика\n\n"
@@ -286,11 +286,11 @@ _STRINGS = {
         "card_gone": "So'rov topilmadi.",
         # free times
         "free_title": "🕐 Bo'sh vaqtlar",
+        "free_hint": "Band vaqt ❌ bilan belgilangan — bronni ko'rish uchun bosing.",
         "free_hours_not_set": "Avval ⚙️ Sozlamalarda ish vaqtini kiriting.",
         "free_day": "📅 {day}, {date}",
-        "free_none": "bo'sh vaqt yo'q",
-        "free_busy_title": "Band:",
-        "free_busy_row": "{start}–{end} · {name} ({people} kishi)",
+        "free_slot_free_toast": "Bo'sh",
+        "free_slot_detail": "{time}–{end}\n{name} · {people} kishi",
         # stats
         "stats_overview": (
             "📊 Statistika\n\n"

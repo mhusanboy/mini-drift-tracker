@@ -8,7 +8,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot.config import get_settings
 from bot.handlers import ui
-from bot.keyboards.admin import admin_panel_kb, users_page_kb
+from bot.keyboards.admin import admin_panel_kb, free_times_kb, users_page_kb
 from bot.keyboards.common import back_kb, day_label
 from bot.locales import LANGUAGES, t
 from bot.services import bookings, service, slots, stats, users
@@ -44,40 +44,21 @@ async def panel(cb: CallbackQuery, state: FSMContext, lang: str):
 
 # --- Free times -------------------------------------------------------------
 
-def _busy_rows(taken, lang: str) -> list[str]:
-    return [
-        t("free_busy_row", lang,
-          start=fmt_minutes(b.start_minute),
-          end=fmt_minutes(b.start_minute + b.duration_hours * 60),
-          name=b.full_name, people=b.people_count)
-        for b in taken
-    ]
-
-
-def _day_block(day: date, today: date, free: list[int], taken, lang: str) -> str:
-    lines = [
-        t("free_day", lang, day=day_label(day, today, lang), date=day.strftime("%d.%m")),
-        ", ".join(fmt_minutes(m) for m in free) or t("free_none", lang),
-    ]
-    if taken:
-        lines.append(t("free_busy_title", lang))
-        lines.extend(_busy_rows(taken, lang))
-    return "\n".join(lines)
-
-
 async def _free_content(session_factory, lang: str):
     now = datetime.now()
     async with session_factory() as session:
         svc = await service.get_service(session)
         if not slots.has_hours(svc):
             return t("free_hours_not_set", lang), back_kb("back:panel", lang)
-        blocks = []
+        days = []
         for day in slots.next_days(now.date()):
             taken = await slots.accepted_on(session, day)
-            blocks.append(_day_block(
-                day, now.date(), slots.free_slots(svc, taken, day, now), taken, lang,
-            ))
-    return t("free_title", lang) + "\n\n" + "\n\n".join(blocks), back_kb("back:panel", lang)
+            days.append({
+                "date": day,
+                "label": day_label(day, now.date(), lang),
+                "slots": slots.day_schedule(svc, taken, day, now),
+            })
+    return t("free_title", lang) + "\n\n" + t("free_hint", lang), free_times_kb(days, lang)
 
 
 @router.callback_query(F.data == "adm:free")
@@ -88,6 +69,33 @@ async def panel_free(cb: CallbackQuery, lang: str, session_factory):
     text, markup = await _free_content(session_factory, lang)
     await ui.edit_screen(cb, text, markup)
     await cb.answer()
+
+
+@router.callback_query(F.data == "free:noop")
+async def free_noop(cb: CallbackQuery):
+    # The per-day header is a label, not an action.
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("free:slot:"))
+async def free_slot(cb: CallbackQuery, lang: str, session_factory):
+    if not _is_admin(cb.from_user.id):
+        await cb.answer(t("not_authorized", lang), show_alert=True)
+        return
+    _, _, iso, minute = cb.data.split(":")
+    day = date.fromisoformat(iso)
+    async with session_factory() as session:
+        taken = await slots.accepted_on(session, day)
+    booking = slots.covered_by(taken, int(minute))
+    if booking is None:
+        await cb.answer(t("free_slot_free_toast", lang))
+        return
+    end = booking.start_minute + booking.duration_hours * 60
+    await cb.answer(
+        t("free_slot_detail", lang, time=fmt_minutes(booking.start_minute),
+          end=fmt_minutes(end), name=booking.full_name, people=booking.people_count),
+        show_alert=True,
+    )
 
 
 # --- Stats ------------------------------------------------------------------
