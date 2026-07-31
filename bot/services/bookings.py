@@ -1,5 +1,5 @@
 """Booking requests: raised by a customer, decided by an admin."""
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from bot.db.models import Booking, BookingStatus, User
 from bot.services.slots import hours_needed
+from bot.timeutil import now_local
 
 
 async def create(
@@ -39,7 +40,7 @@ async def set_status(session: AsyncSession, booking_id: int, status: str) -> Boo
     if booking is None:
         return None
     booking.status = status
-    booking.decided_at = datetime.now()
+    booking.decided_at = now_local()
     await session.commit()
     await session.refresh(booking)
     return booking

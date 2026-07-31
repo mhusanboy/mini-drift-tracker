@@ -4,8 +4,6 @@ Everything happens inside the one card message. An edit turns the card into a
 prompt; the admin's typed answer is deleted and the card is rebuilt in its
 place, so the notification never spawns a trail of messages.
 """
-from datetime import date
-
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -18,7 +16,7 @@ from bot.keyboards.common import main_menu_kb
 from bot.locales import t
 from bot.services import bookings, notify, slots, whenparse
 from bot.states import EditCard
-from bot.timeutil import fmt_minutes
+from bot.timeutil import fmt_minutes, today_local
 
 router = Router()
 
@@ -190,7 +188,7 @@ async def _restore_card(message: Message, state: FSMContext, booking, lang: str)
 
 @router.message(EditCard.time, F.text)
 async def save_time(message: Message, state: FSMContext, lang: str, session_factory):
-    day, start_minute = whenparse.parse_when(message.text, date.today())
+    day, start_minute = whenparse.parse_when(message.text, today_local())
     if start_minute is None:
         await _reject_input(message, state, lang, "card_time_invalid")
         return

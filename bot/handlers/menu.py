@@ -12,6 +12,7 @@ from bot.keyboards.common import back_kb, booking_link_kb, main_menu_kb
 from bot.locales import t
 from bot.services import booking_link, bookings, notify, promos, service, whenparse
 from bot.states import BookingRequest
+from bot.timeutil import today_local
 
 router = Router()
 
@@ -122,7 +123,7 @@ async def booking_when(message: Message, state: FSMContext, lang: str, user: Use
         return
     # Understood or not, the request goes through — an unreadable time just
     # arrives at the admin flagged for them to set.
-    day, start_minute = whenparse.parse_when(when, date.today())
+    day, start_minute = whenparse.parse_when(when, today_local())
     await state.update_data(
         when_text=when,
         day=day.isoformat() if day else None,

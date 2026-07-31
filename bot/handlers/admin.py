@@ -1,5 +1,5 @@
 """Admin panel: entry screen, free times, stats, history export, users."""
-from datetime import date, datetime
+from datetime import date
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -13,7 +13,7 @@ from bot.keyboards.common import back_kb, day_label
 from bot.locales import LANGUAGES, t
 from bot.services import bookings, service, slots, stats, users
 from bot.services.export import build_stats_workbook
-from bot.timeutil import fmt_minutes
+from bot.timeutil import fmt_minutes, now_local, today_local
 
 router = Router()
 
@@ -45,7 +45,7 @@ async def panel(cb: CallbackQuery, state: FSMContext, lang: str):
 # --- Free times -------------------------------------------------------------
 
 async def _free_content(session_factory, lang: str):
-    now = datetime.now()
+    now = now_local()
     async with session_factory() as session:
         svc = await service.get_service(session)
         if not slots.has_hours(svc):
@@ -102,7 +102,7 @@ async def free_slot(cb: CallbackQuery, lang: str, session_factory):
 
 async def _stats_content(session_factory, lang: str):
     async with session_factory() as session:
-        overview = await stats.overview(session, date.today())
+        overview = await stats.overview(session, today_local())
     return t("stats_overview", lang, **overview), back_kb("back:panel", lang)
 
 
@@ -128,7 +128,7 @@ async def panel_stats(cb: CallbackQuery, lang: str, session_factory):
 # --- Booking history (Excel) ------------------------------------------------
 
 async def _send_history(target: Message, session_factory, lang: str) -> None:
-    today = date.today()
+    today = today_local()
     async with session_factory() as session:
         overview = await stats.overview(session, today)
         customers = await stats.all_user_stats(session)

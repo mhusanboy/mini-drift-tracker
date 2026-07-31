@@ -1,5 +1,27 @@
-"""Parsing and formatting of clock times entered by admins."""
+"""Parsing and formatting of clock times, and the bot's local clock.
+
+The service runs in Asia/Tashkent (UTC+5, no DST). The droplet's system clock is
+UTC, so every read of "now"/"today" goes through the helpers below rather than
+``datetime.now()`` directly. They return **naive** datetimes carrying local
+wall-clock time — the rest of the code does naive arithmetic (slot minutes, day
+boundaries), so mixing in a tz-aware value would raise.
+"""
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
 DAY_MINUTES = 24 * 60
+
+TZ = ZoneInfo("Asia/Tashkent")
+
+
+def now_local() -> datetime:
+    """Current Tashkent wall-clock time, as a naive datetime."""
+    return datetime.now(TZ).replace(tzinfo=None)
+
+
+def today_local() -> date:
+    """Today's date in Tashkent."""
+    return now_local().date()
 
 
 def parse_time(text: str) -> int | None:

@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.db.base import Base
+from bot.timeutil import now_local
 
 PHOTO = "photo"
 VIDEO = "video"
@@ -32,7 +33,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     phone: Mapped[str] = mapped_column(String, nullable=False)
     language: Mapped[str] = mapped_column(String, nullable=False, default="ru")
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, server_default=func.now())
 
 
 class Service(Base):
@@ -70,7 +71,7 @@ class Promo(Base):
     # PHOTO / VIDEO / None. file_id is a Telegram file id, valid for this bot.
     media_type: Mapped[str | None] = mapped_column(String, nullable=True)
     file_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, server_default=func.now())
 
 
 class Booking(Base):
@@ -101,7 +102,7 @@ class Booking(Base):
     # edit from silently recalculating over it.
     duration_overridden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default=BookingStatus.PENDING)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, server_default=func.now())
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship()
