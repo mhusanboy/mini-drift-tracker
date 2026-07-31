@@ -37,18 +37,19 @@ async def show_location(cb: CallbackQuery, lang: str, session_factory):
         await cb.answer(t("location_not_set", lang), show_alert=True)
         return
     await ui.purge(cb.bot, cb.message.chat.id)
+    # The location is sent sticky so later navigation never clears it away.
     if svc.latitude is not None and svc.longitude is not None:
         if svc.title:
-            ui.own(await cb.message.answer_venue(
+            await ui.sticky(await cb.message.answer_venue(
                 latitude=svc.latitude, longitude=svc.longitude,
                 title=svc.title, address=svc.address or svc.title,
             ))
         else:
-            ui.own(await cb.message.answer_location(
+            await ui.sticky(await cb.message.answer_location(
                 latitude=svc.latitude, longitude=svc.longitude,
             ))
     else:
-        await ui.send(cb.message, t("location_link", lang, url=svc.location_url))
+        await ui.sticky(await cb.message.answer(t("location_link", lang, url=svc.location_url)))
     await _menu_below(cb.message, cb.from_user.id, lang)
     await cb.answer()
 

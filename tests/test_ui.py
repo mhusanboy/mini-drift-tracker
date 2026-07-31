@@ -55,8 +55,10 @@ class FakeCallback:
 @pytest.fixture(autouse=True)
 def _clean_registry():
     ui._live.clear()
+    ui._sticky.clear()
     yield
     ui._live.clear()
+    ui._sticky.clear()
 
 
 async def test_show_screen_clears_the_previous_screen():
@@ -136,6 +138,23 @@ async def test_edit_card_does_not_touch_the_live_screen_registry():
     assert bot.edited == [(card.message_id, "card updated")]
     assert bot.deleted == []
     assert ui._live[CHAT] == [screen.message_id]
+
+
+async def test_sticky_survives_screen_clears():
+    bot = FakeBot()
+    root = bot.new_message(CHAT)
+    pin = await ui.sticky(bot.new_message(CHAT, "venue"))
+    await ui.show_screen(root, "menu")     # clears the live screen...
+    await ui.show_screen(root, "prices")   # ...and again
+    assert pin.message_id not in bot.deleted   # the location pin is spared
+
+
+async def test_sticky_replaces_the_previous_one():
+    bot = FakeBot()
+    first = await ui.sticky(bot.new_message(CHAT, "venue #1"))
+    second = await ui.sticky(bot.new_message(CHAT, "venue #2"))
+    assert bot.deleted == [first.message_id]      # the old pin is removed
+    assert ui._sticky[CHAT] == second.message_id  # only the newest is kept
 
 
 async def test_purge_can_spare_one_message():

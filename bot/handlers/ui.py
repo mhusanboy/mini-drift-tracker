@@ -19,8 +19,13 @@ from aiogram.types import CallbackQuery, Message
 logger = logging.getLogger(__name__)
 
 # chat_id -> ids of the bot messages currently on screen: the screen itself plus
-# anything sent alongside it (a map pin, the aksiya photos).
+# anything sent alongside it (the aksiya photos).
 _live: dict[int, list[int]] = {}
+
+# chat_id -> a single "sticky" bot message that outlives screen clears (the
+# location pin the customer may want to scroll back to). A new sticky replaces
+# the old one, so pins never pile up.
+_sticky: dict[int, int] = {}
 
 
 def _own(chat_id: int, message_id: int) -> None:
@@ -49,6 +54,17 @@ async def delete(message: Message) -> None:
     request card the admin has finished with). Never call this on a user's
     message — the bot does not delete those."""
     await _delete(message.bot, message.chat.id, message.message_id)
+
+
+async def sticky(sent: Message) -> Message:
+    """Keep a just-sent bot message across navigation — purge()/show_screen()
+    never touch it. Replaces this chat's previous sticky so only the latest one
+    (e.g. the current location pin) stays."""
+    prev = _sticky.get(sent.chat.id)
+    if prev is not None and prev != sent.message_id:
+        await _delete(sent.bot, sent.chat.id, prev)
+    _sticky[sent.chat.id] = sent.message_id
+    return sent
 
 
 async def purge(bot, chat_id: int, keep: int | None = None) -> None:
